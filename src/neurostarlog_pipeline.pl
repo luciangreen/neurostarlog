@@ -4,10 +4,12 @@
 % PR 2: S2A grammar output — grammar writer integrated into S2A path.
 % PR 3: S2A → Prolog converter — grammar converted to runnable Prolog predicates.
 % PR 4: S2A → Starlog converter — generated Prolog optionally converted to Starlog.
+% PR 5: NP full-pipeline integration — correctness-preserving optimiser with plateau stopping.
 
 :- include('s2a_grammar_writer.pl').
 :- include('s2a_to_prolog_converter.pl').
 :- include('s2a_to_starlog_converter.pl').
+:- include('np_optimiser.pl').
 
 %% detect_input_type(+File, -Type)
 %
@@ -178,11 +180,34 @@ run_s2a_path(InputFile, OutMode, _Compress, GrammarOut, CodeOut) :-
 
 %% run_np_path(+InputFile, +InputType, +OutMode, +Compress, +CodeOut)
 %
-% Placeholder NP/NSL path (PR 5 will implement full NP pipeline).
+% PR 5: Full NP optimiser pipeline.
+% Reads Prolog/Starlog source, applies correctness-preserving optimisations
+% with plateau stopping, and writes the result.
 
-run_np_path(InputFile, InputType, _OutMode, _Compress, _CodeOut) :-
-    pipeline_log(info, ['NP: reading ', InputType, ' source from ', InputFile, '.']),
-    pipeline_log(info, ['NP: optimisation pipeline not yet implemented (PR 5).']).
+run_np_path(InputFile, InputType, OutMode, Compress, CodeOut) :-
+    pipeline_log(info,
+        ['NP: reading ', InputType, ' source from ', InputFile, '.']),
+    % Resolve code output file when not specified.
+    ( CodeOut \= '' ->
+        OutFile = CodeOut
+    ;
+        file_base_name(InputFile, BaseName),
+        file_name_extension(PredName, _, BaseName),
+        atom_concat('out/', PredName, OutPrefix),
+        atom_concat(OutPrefix, '_np_optimised.pl', OutFile)
+    ),
+    np_optimise_file(InputFile, InputType, OutMode, Compress, OutFile, Status),
+    ( Status = ok ->
+        pipeline_log(info, ['NP: optimisation completed successfully.'])
+    ;
+        Status = partial(Errors),
+        pipeline_log(info, ['NP: optimisation completed with errors.']),
+        forall(
+            member(error(EType, EDetail), Errors),
+            ( format(atom(EMsg), '~w: ~w', [EType, EDetail]),
+              pipeline_log(error, ['NP error — ', EMsg]) )
+        )
+    ).
 
 %% write_log_file(+File)
 
