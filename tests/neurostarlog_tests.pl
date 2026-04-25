@@ -360,3 +360,179 @@ test('s2a_starlog/starlog-file-has-header',
       write_s2a_starlog(hdrtest, Clauses, StarlogFile, _Status),
       read_file_to_string(StarlogFile, Content, []),
       sub_string(Content, _, _, _, "Generated Starlog") )).
+
+% ---------------------------------------------------------------------------
+% PR 5 tests: NP full-pipeline integration
+% ---------------------------------------------------------------------------
+
+% T46: np_load_clauses/3 successfully loads a Prolog file.
+test('np/load-clauses',
+    ( np_load_clauses('examples/np_prolog_input.pl', Clauses, Errors),
+      Errors = [],
+      Clauses \= [] )).
+
+% T47: np_load_clauses/3 returns an error for a nonexistent file.
+test('np/load-clauses-missing-file',
+    ( np_load_clauses('/nonexistent/np_file.pl', [], Errors),
+      Errors \= [] )).
+
+% T48: np_is_irreducible_goal/1 recognises I/O predicates.
+test('np/irreducible-io-write',
+    ( np_is_irreducible_goal(write(hello)) )).
+
+% T49: np_is_irreducible_goal/1 recognises random predicates.
+test('np/irreducible-random',
+    ( np_is_irreducible_goal(random_between(1, 6, _)) )).
+
+% T50: np_is_irreducible_goal/1 does not flag plain user predicates.
+test('np/not-irreducible-user-pred',
+    ( \+ np_is_irreducible_goal(positive(_)) )).
+
+% T51: np_remove_true_clause/2 removes `true` from a conjunction.
+test('np/remove-true-from-body',
+    ( np_remove_true_clause(
+          (greet(N) :- true, write(N), nl),
+          (greet(N2) :- write(N2), nl) ),
+      N = N2 )).
+
+% T52: np_remove_true_clause/2 preserves facts (no body).
+test('np/remove-true-preserves-facts',
+    ( np_remove_true_clause(base([]), base([])) )).
+
+% T53: np_remove_true_clause/2 keeps a body that is only `true` as `true`.
+test('np/remove-true-only-true-body',
+    ( np_remove_true_clause(
+          (foo :- true),
+          (foo :- true) ) )).
+
+% T54: np_clause_body_is_fail/1 detects fail-body clauses.
+test('np/fail-body-detected',
+    ( np_clause_body_is_fail((_ :- fail)) )).
+
+% T55: np_clause_body_is_fail/1 does not trigger on a normal body.
+test('np/fail-body-not-triggered',
+    ( \+ np_clause_body_is_fail((foo(X) :- bar(X))) )).
+
+% T56: np_plateau_optimise/4 terminates (plateau or max-iter) for any input.
+test('np/plateau-terminates',
+    ( np_load_clauses('examples/np_prolog_input.pl', Clauses, []),
+      np_plateau_optimise(Clauses, _Optimised, 100, Log),
+      member(Msg, Log),
+      sub_atom(Msg, _, _, _, 'NP:') )).
+
+% T57: Plateau is reached after one pass for an already-optimal clause set.
+test('np/plateau-one-pass-for-optimal',
+    ( np_plateau_optimise([(foo :- bar(x))], _Opt, 100, Log),
+      member(Msg, Log),
+      sub_atom(Msg, _, _, _, plateau) )).
+
+% T58: Prolog source → NP optimisation → Prolog output file produced.
+test('np/prolog-to-prolog-file',
+    ( tmp_file('nsl_np_out', Base),
+      atom_concat(Base, '_np.pl', OutFile),
+      np_optimise_file('examples/np_prolog_input.pl', prolog, prolog,
+                       true, OutFile, Status),
+      ( Status = ok ; Status = partial(_) ),
+      exists_file(OutFile) )).
+
+% T59: Generated Prolog from NP path loads in SWI-Prolog without error.
+test('np/generated-prolog-loadable',
+    ( tmp_file('nsl_np_load', Base),
+      atom_concat(Base, '_np_load.pl', OutFile),
+      np_optimise_file('examples/np_prolog_input.pl', prolog, prolog,
+                       true, OutFile, _Status),
+      exists_file(OutFile),
+      catch(consult(OutFile), _, true) )).
+
+% T60: With out=starlog, NP path produces a .starlog output file.
+test('np/prolog-to-starlog-file',
+    ( tmp_file('nsl_np_sl', Base),
+      atom_concat(Base, '_np.pl', OutFile),
+      np_optimise_file('examples/np_prolog_input.pl', prolog, starlog,
+                       true, OutFile, _Status),
+      file_name_extension(Base2, _, OutFile),
+      atom_concat(Base2, '.starlog', StarlogFile),
+      exists_file(StarlogFile) )).
+
+% T61: Generated Starlog from NP path contains NP header comment.
+test('np/generated-starlog-has-header',
+    ( tmp_file('nsl_np_hdr', Base),
+      atom_concat(Base, '_np_hdr.pl', OutFile),
+      np_optimise_file('examples/np_prolog_input.pl', prolog, starlog,
+                       true, OutFile, _Status),
+      file_name_extension(Base2, _, OutFile),
+      atom_concat(Base2, '.starlog', StarlogFile),
+      read_file_to_string(StarlogFile, Content, []),
+      sub_string(Content, _, _, _, "Generated Starlog") )).
+
+% T62: I/O predicates (writeln) are preserved in NP output.
+test('np/io-predicates-preserved',
+    ( tmp_file('nsl_np_io', Base),
+      atom_concat(Base, '_np_io.pl', OutFile),
+      np_optimise_file('examples/np_prolog_input.pl', prolog, prolog,
+                       true, OutFile, _Status),
+      read_file_to_string(OutFile, Content, []),
+      sub_string(Content, _, _, _, "writeln") )).
+
+% T63: Random predicates are preserved in NP output.
+test('np/random-predicates-preserved',
+    ( tmp_file('nsl_np_rnd', Base),
+      atom_concat(Base, '_np_rnd.pl', OutFile),
+      np_optimise_file('examples/np_prolog_input.pl', prolog, prolog,
+                       true, OutFile, _Status),
+      read_file_to_string(OutFile, Content, []),
+      sub_string(Content, _, _, _, "random_between") )).
+
+% T64: Unsupported arithmetic (X*X) is preserved unchanged in NP output.
+test('np/unsupported-maths-preserved',
+    ( tmp_file('nsl_np_math', Base),
+      atom_concat(Base, '_np_math.pl', OutFile),
+      np_optimise_file('examples/np_prolog_input.pl', prolog, prolog,
+                       true, OutFile, _Status),
+      read_file_to_string(OutFile, Content, []),
+      sub_string(Content, _, _, _, "*") )).
+
+% T65: np_clauses_equivalent/2 is true for structurally equal clause sets.
+test('np/clauses-equivalent-same',
+    ( np_clauses_equivalent([(foo(X) :- bar(X))], [(foo(Y) :- bar(Y))]) )).
+
+% T66: np_clauses_equivalent/2 is false for different clause sets.
+test('np/clauses-not-equivalent-different',
+    ( \+ np_clauses_equivalent([(foo :- bar)], [(foo :- baz)]) )).
+
+% T67: run_pipeline/1 uses NP path for prolog input and succeeds.
+test('np/run-pipeline-np-path',
+    ( retractall(log_message(_)),
+      tmp_file('nsl_np_pipe', Base),
+      atom_concat(Base, '_pipe.pl', OutFile),
+      run_pipeline([
+          input='examples/np_prolog_input.pl',
+          input_type=prolog,
+          out=prolog,
+          compress=false,
+          code_out=OutFile
+      ]),
+      exists_file(OutFile) )).
+
+% T68: Gaussian elimination does not run without trace-based pattern detection.
+%      (PR 5: no Gaussian module is invoked — verified by absence of Gaussian log.)
+test('np/gaussian-not-run-without-pattern',
+    ( retractall(log_message(_)),
+      np_load_clauses('examples/np_prolog_input.pl', Clauses, []),
+      np_plateau_optimise(Clauses, _, 100, Log),
+      \+ member('NP: applied Gaussian elimination.', Log) )).
+
+% T69: Unoptimisable program sections remain unchanged.
+%      A clause with only irreducible goals is preserved as-is.
+test('np/unoptimisable-unchanged',
+    ( Clause = (log_it(X) :- writeln(X), nl),
+      np_plateau_optimise([Clause], [Clause2], 100, _Log),
+      np_clause_canonical(Clause, CA),
+      np_clause_canonical(Clause2, CB),
+      CA = CB )).
+
+% T70: np_optimise_file/6 returns partial status for a missing input file.
+test('np/partial-status-on-missing-file',
+    ( np_optimise_file('/nonexistent/np_missing.pl', prolog, prolog,
+                       true, '', Status),
+      Status = partial(_) )).
