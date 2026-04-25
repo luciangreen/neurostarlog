@@ -339,19 +339,10 @@ np_clause_head((Head :- _), Head) :- !.
 np_clause_head(Head, Head) :- callable(Head), Head \= (:- _).
 
 np_count_clauses_for(Clauses, Name, Arity, Count) :-
-    functor(P, Name, Arity),
     findall(C,
         ( member(C, Clauses),
           np_clause_head(C, H),
-          callable(H),
-          functor(H, Name, Arity),
-          \+ H = P % avoid functor/3 pattern matching issues — use functor check
-        ),
-        _),
-    findall(C,
-        ( member(C, Clauses),
-          np_clause_head(C, H2),
-          functor(H2, Name, Arity)
+          functor(H, Name, Arity)
         ),
         Matching),
     length(Matching, Count).

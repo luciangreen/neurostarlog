@@ -388,12 +388,13 @@ test('np/irreducible-random',
 test('np/not-irreducible-user-pred',
     ( \+ np_is_irreducible_goal(positive(_)) )).
 
-% T51: np_remove_true_clause/2 removes `true` from a conjunction.
+% T51: np_remove_true_clause/2 removes `true` from a conjunction body.
+%      Verifies the output body is (write(N), nl) without any `true` goal.
 test('np/remove-true-from-body',
     ( np_remove_true_clause(
           (greet(N) :- true, write(N), nl),
-          (greet(N2) :- write(N2), nl) ),
-      N = N2 )).
+          (greet(N) :- Body) ),
+      Body = (write(N), nl) )).
 
 % T52: np_remove_true_clause/2 preserves facts (no body).
 test('np/remove-true-preserves-facts',
