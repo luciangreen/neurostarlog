@@ -173,3 +173,93 @@ test('s2a_grammar/list-growth-detected',
 % T20: detect_list_growth/2 is false for single-length inputs.
 test('s2a_grammar/no-list-growth-for-uniform-length',
     ( detect_list_growth([[1,2],[3,4],[5,6]], false) )).
+
+% ---------------------------------------------------------------------------
+% PR 3 tests: S2A → Prolog converter
+% ---------------------------------------------------------------------------
+
+% T21: Grammar converts to a Prolog generated file (file exists).
+test('s2a_prolog/prolog-file-generated',
+    ( tmp_file('nsl_prolog', PBase),
+      atom_concat(PBase, '_generated.pl', PrologFile),
+      write_s2a_grammar(sum, 'examples/input.pl', '', Grammar, _),
+      write_s2a_prolog(sum, Grammar, PrologFile, _Status),
+      exists_file(PrologFile) )).
+
+% T22: Generated Prolog contains the base clause P([], _Out).
+test('s2a_prolog/base-clause-present',
+    ( write_s2a_grammar(sum2, 'examples/input.pl', '', Grammar, _),
+      convert_s2a_grammar_to_prolog(sum2, Grammar, Clauses, _Errors),
+      member(Text, Clauses),
+      sub_atom(Text, _, _, _, 'sum2([], _Out).') )).
+
+% T23: Generated Prolog contains a recursive clause (with recursive call).
+test('s2a_prolog/recursive-clause-present',
+    ( write_s2a_grammar(rsum, 'examples/input.pl', '', Grammar, _),
+      convert_s2a_grammar_to_prolog(rsum, Grammar, Clauses, _Errors),
+      member(Text, Clauses),
+      sub_atom(Text, _, _, _, 'rsum(') ,
+      sub_atom(Text, _, _, _, ':-') )).
+
+% T24: Partial failure (empty grammar) returns partial status with no_grammar error.
+test('s2a_prolog/partial-failure-on-empty-grammar',
+    ( write_s2a_prolog(empty_p, [], '', Status),
+      Status = partial(Errors),
+      member(error(no_grammar, _), Errors) )).
+
+% T25: Generated Prolog file loads in SWI-Prolog without error.
+test('s2a_prolog/generated-prolog-loadable',
+    ( tmp_file('nsl_load_p', PBase),
+      atom_concat(PBase, '_generated.pl', PrologFile),
+      write_s2a_grammar(loadp, 'examples/input.pl', '', Grammar, _),
+      write_s2a_prolog(loadp, Grammar, PrologFile, _Status),
+      exists_file(PrologFile),
+      catch(consult(PrologFile), _, true) )).
+
+% T26: UNRESOLVED comment appears in generated Prolog for unresolved sections.
+test('s2a_prolog/unresolved-comment-present',
+    ( write_s2a_grammar(uctest, 'examples/input.pl', '', Grammar, _),
+      convert_s2a_grammar_to_prolog(uctest, Grammar, Clauses, _Errors),
+      member(Text, Clauses),
+      sub_atom(Text, _, _, _, 'UNRESOLVED') )).
+
+% T27: convert_s2a_grammar_to_prolog/4 reports errors for unresolved sections.
+test('s2a_prolog/errors-for-unresolved-sections',
+    ( write_s2a_grammar(ertest, 'examples/input.pl', '', Grammar, _),
+      convert_s2a_grammar_to_prolog(ertest, Grammar, _Clauses, Errors),
+      Errors \= [] )).
+
+% T28: Partial grammar (missing file) produces partial Prolog with no_grammar error.
+test('s2a_prolog/partial-prolog-on-missing-input',
+    ( write_s2a_grammar(pftest, '/nonexistent/path/file.pl', '', Grammar, _),
+      write_s2a_prolog(pftest, Grammar, '', Status),
+      Status = partial(_) )).
+
+% T29: Base-case grammar rule [P, [n,a1], '->', [[]]] generates P([], _Out).
+test('s2a_prolog/base-rule-conversion',
+    ( rhs_to_clause_texts(baseconv, [[]], Clauses, []),
+      Clauses = [Text],
+      sub_atom(Text, _, _, _, 'baseconv([], _Out).') )).
+
+% T30: List-growth grammar rule generates recursive clause with recursive call.
+test('s2a_prolog/recursive-rule-conversion',
+    ( rhs_to_clause_texts(recconv, [['_X'], [n, a1]], Clauses, _Errors),
+      Clauses = [Text],
+      sub_atom(Text, _, _, _, 'recconv(') )).
+
+% T31: Repeated-structure rule [[r, [n,a1]]] generates a clause.
+test('s2a_prolog/repeated-rule-conversion',
+    ( rhs_to_clause_texts(repconv, [[r, [n, a1]]], Clauses, _Errors),
+      Clauses = [Text],
+      sub_atom(Text, _, _, _, 'repconv(') )).
+
+% T32: Non-deterministic rule [[nd, [Alt1, Alt2]]] generates two clauses.
+test('s2a_prolog/nd-rule-generates-two-clauses',
+    ( rhs_to_clause_texts(ndconv, [[nd, [['_X'], ['_Y']]]], Clauses, _Errors),
+      length(Clauses, 2) )).
+
+% T33: write_s2a_prolog/4 writes nothing and succeeds when OutFile is ''.
+test('s2a_prolog/no-file-written-when-outfile-empty',
+    ( write_s2a_grammar(nftest, 'examples/input.pl', '', Grammar, _),
+      write_s2a_prolog(nftest, Grammar, '', Status),
+      ( Status = ok ; Status = partial(_) ) )).

@@ -2,8 +2,10 @@
 % Main pipeline for NeuroStarlog.
 % PR 1: Integration skeleton — input-type detection and basic pipeline log.
 % PR 2: S2A grammar output — grammar writer integrated into S2A path.
+% PR 3: S2A → Prolog converter — grammar converted to runnable Prolog predicates.
 
 :- include('s2a_grammar_writer.pl').
+:- include('s2a_to_prolog_converter.pl').
 
 %% detect_input_type(+File, -Type)
 %
@@ -88,8 +90,9 @@ run_pipeline(Options) :-
 %% run_s2a_path(+InputFile, +OutMode, +Compress, +GrammarOut, +CodeOut)
 %
 % PR 2: Read I/O examples, detect patterns, and write grammar to file.
+% PR 3: Convert generated grammar to runnable Prolog predicates.
 
-run_s2a_path(InputFile, _OutMode, _Compress, GrammarOut, _CodeOut) :-
+run_s2a_path(InputFile, _OutMode, _Compress, GrammarOut, CodeOut) :-
     pipeline_log(info, ['S2A: reading I/O examples from ', InputFile, '.']),
 
     % Derive a predicate name from the input file base name.
@@ -105,19 +108,42 @@ run_s2a_path(InputFile, _OutMode, _Compress, GrammarOut, _CodeOut) :-
     ),
 
     % Generate and write grammar.
-    write_s2a_grammar(PredName, InputFile, GrammarFile, _Grammar, Status),
+    write_s2a_grammar(PredName, InputFile, GrammarFile, Grammar, GrammarStatus),
 
-    % Log outcome.
-    ( Status = ok ->
+    % Log grammar outcome.
+    ( GrammarStatus = ok ->
         pipeline_log(info, ['S2A: grammar generation completed successfully.']),
         pipeline_log(info, ['S2A: generated grammar and wrote it to ', GrammarFile, '.'])
     ;
-        Status = partial(Errors),
+        GrammarStatus = partial(GrammarErrors),
         pipeline_log(info, ['S2A: partial grammar written to ', GrammarFile, '.']),
         forall(
-            member(error(Type, Detail), Errors),
-            ( format(atom(Msg), '~w: ~w', [Type, Detail]),
-              pipeline_log(error, ['S2A grammar error — ', Msg]) )
+            member(error(GType, GDetail), GrammarErrors),
+            ( format(atom(GMsg), '~w: ~w', [GType, GDetail]),
+              pipeline_log(error, ['S2A grammar error — ', GMsg]) )
+        )
+    ),
+
+    % PR 3: Convert grammar to runnable Prolog predicates.
+    ( CodeOut \= '' ->
+        PrologFile = CodeOut
+    ;
+        atom_concat('out/', PredName, PrologPrefix),
+        atom_concat(PrologPrefix, '_generated.pl', PrologFile)
+    ),
+    write_s2a_prolog(PredName, Grammar, PrologFile, PrologStatus),
+
+    % Log Prolog conversion outcome.
+    ( PrologStatus = ok ->
+        pipeline_log(info, ['S2A: Prolog conversion completed successfully.']),
+        pipeline_log(info, ['S2A: generated Prolog and wrote it to ', PrologFile, '.'])
+    ;
+        PrologStatus = partial(PrologErrors),
+        pipeline_log(info, ['S2A: partial Prolog written to ', PrologFile, '.']),
+        forall(
+            member(error(PType, PDetail), PrologErrors),
+            ( format(atom(PMsg), '~w: ~w', [PType, PDetail]),
+              pipeline_log(error, ['S2A Prolog error — ', PMsg]) )
         )
     ).
 
