@@ -60,14 +60,46 @@ swipl -q -g "consult('tests/run_tests')" -g "run_all_tests" -t halt
 * CLI flag parsing (`--input`, `--input-type`, `--out`, `--compress`, `--grammar-out`, `--code-out`, `--log-out`, `--strict`)
 * Input-type auto-detection (prolog / starlog / io\_examples)
 * Pipeline skeleton with simple log output
-* S2A and NP/NSL path stubs (grammar generation and optimisation added in later PRs)
-* Test infrastructure
+* S2A I/O-example path: grammar generation, Prolog output, Starlog output
+* Test infrastructure (45 tests across PRs 1–4)
+
+### PR 4 — Prolog → Starlog output
+
+The S2A path now produces a `.starlog` file alongside the `.pl` file when `--out starlog` is used (the default).
+
+**Conversion rules applied:**
+
+| Prolog predicate | Starlog form |
+|------------------|-------------|
+| `append(A,B,C)` | `C is A&B` |
+| `atom_concat(A,B,C)` | `C is A•B` |
+| `string_concat(A,B,C)` | `C is A:B` |
+
+**Method chaining:** consecutive `is`-goals sharing an intermediate variable are inlined automatically. For example:
+
+```prolog
+% Prolog input:
+cat3(A,B,C,R) :- atom_concat(A,B,T), atom_concat(T,C,R).
+
+% Starlog output (method-chained):
+cat3(A,B,C,R) :-
+    R is A•B•C.
+```
+
+**Roundtrip:** `starlog_to_prolog/2` reverses the conversion back to standard Prolog, enabling roundtrip verification.
+
+**Output file:** `out/<predicate>_generated.starlog`
+
+### Example output files
+
+Given `examples/input.pl` containing I/O examples, the pipeline writes:
+
+* `out/input_grammar.pl` — generated grammar rules
+* `out/input_generated.pl` — generated Prolog predicates
+* `out/input_generated.starlog` — fully compressed Starlog (PR 4)
 
 ## What remains unchanged / not yet implemented
 
-* S2A grammar generation (PR 2)
-* S2A → Prolog converter (PR 3)
-* Prolog → Starlog output (PR 4)
 * NeuroProlog full optimisation pipeline (PR 5)
 * Gaussian elimination / index optimisation (PR 6)
 * Hybrid S2A + NP mode (PR 7)
