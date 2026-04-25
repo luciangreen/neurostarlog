@@ -3,9 +3,11 @@
 % PR 1: Integration skeleton — input-type detection and basic pipeline log.
 % PR 2: S2A grammar output — grammar writer integrated into S2A path.
 % PR 3: S2A → Prolog converter — grammar converted to runnable Prolog predicates.
+% PR 4: S2A → Starlog converter — generated Prolog optionally converted to Starlog.
 
 :- include('s2a_grammar_writer.pl').
 :- include('s2a_to_prolog_converter.pl').
+:- include('s2a_to_starlog_converter.pl').
 
 %% detect_input_type(+File, -Type)
 %
@@ -91,8 +93,9 @@ run_pipeline(Options) :-
 %
 % PR 2: Read I/O examples, detect patterns, and write grammar to file.
 % PR 3: Convert generated grammar to runnable Prolog predicates.
+% PR 4: Optionally convert generated Prolog predicates to Starlog.
 
-run_s2a_path(InputFile, _OutMode, _Compress, GrammarOut, CodeOut) :-
+run_s2a_path(InputFile, OutMode, _Compress, GrammarOut, CodeOut) :-
     pipeline_log(info, ['S2A: reading I/O examples from ', InputFile, '.']),
 
     % Derive a predicate name from the input file base name.
@@ -145,7 +148,33 @@ run_s2a_path(InputFile, _OutMode, _Compress, GrammarOut, CodeOut) :-
             ( format(atom(PMsg), '~w: ~w', [PType, PDetail]),
               pipeline_log(error, ['S2A Prolog error — ', PMsg]) )
         )
-    ).
+    ),
+
+    % PR 4: If output mode is starlog, also convert the Prolog clauses to Starlog.
+    ( OutMode = starlog ->
+        ( CodeOut \= '' ->
+            % Derive a .starlog filename from CodeOut by replacing extension.
+            file_name_extension(CodeOutBase, _, CodeOut),
+            atom_concat(CodeOutBase, '.starlog', StarlogFile)
+        ;
+            atom_concat('out/', PredName, StarlogPrefix),
+            atom_concat(StarlogPrefix, '_generated.starlog', StarlogFile)
+        ),
+        convert_s2a_grammar_to_prolog(PredName, Grammar, ClauseTexts, _),
+        write_s2a_starlog(PredName, ClauseTexts, StarlogFile, StarlogStatus),
+        ( StarlogStatus = ok ->
+            pipeline_log(info, ['S2A: Starlog conversion completed successfully.']),
+            pipeline_log(info, ['S2A: generated Starlog and wrote it to ', StarlogFile, '.'])
+        ;
+            StarlogStatus = partial(StarlogErrors),
+            pipeline_log(info, ['S2A: partial Starlog written to ', StarlogFile, '.']),
+            forall(
+                member(error(SType, SDetail), StarlogErrors),
+                ( format(atom(SMsg), '~w: ~w', [SType, SDetail]),
+                  pipeline_log(error, ['S2A Starlog error — ', SMsg]) )
+            )
+        )
+    ; true ).
 
 %% run_np_path(+InputFile, +InputType, +OutMode, +Compress, +CodeOut)
 %

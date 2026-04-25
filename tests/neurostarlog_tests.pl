@@ -263,3 +263,98 @@ test('s2a_prolog/no-file-written-when-outfile-empty',
     ( write_s2a_grammar(nftest, 'examples/input.pl', '', Grammar, _),
       write_s2a_prolog(nftest, Grammar, '', Status),
       ( Status = ok ; Status = partial(_) ) )).
+
+% ---------------------------------------------------------------------------
+% PR 4 tests: S2A → Starlog converter
+% ---------------------------------------------------------------------------
+
+% T34: I/O examples → Starlog file generated (file exists after S2A with out=starlog).
+test('s2a_starlog/starlog-file-generated',
+    ( tmp_file('nsl_starlog', SBase),
+      atom_concat(SBase, '_generated.starlog', StarlogFile),
+      write_s2a_grammar(sttest, 'examples/input.pl', '', Grammar, _),
+      convert_s2a_grammar_to_prolog(sttest, Grammar, Clauses, _),
+      write_s2a_starlog(sttest, Clauses, StarlogFile, Status),
+      ( Status = ok ; Status = partial(_) ),
+      exists_file(StarlogFile) )).
+
+% T35: convert_prolog_to_starlog converts append(A,B,C) → C is A&B.
+test('s2a_starlog/append-converted-to-starlog',
+    ( convert_prolog_to_starlog(
+          'foo(X,Y,Z) :- append(X,Y,Z).',
+          StarlogText),
+      sub_atom(StarlogText, _, _, _, 'is') )).
+
+% T36: convert_prolog_to_starlog converts atom_concat(A,B,C) → C is A•B.
+test('s2a_starlog/atom-concat-converted-to-starlog',
+    ( convert_prolog_to_starlog(
+          'bar(A,B,C) :- atom_concat(A,B,C).',
+          StarlogText),
+      sub_atom(StarlogText, _, _, _, '•') )).
+
+% T37: convert_prolog_to_starlog converts string_concat(A,B,C) → C is A:B.
+test('s2a_starlog/string-concat-converted-to-starlog',
+    ( convert_prolog_to_starlog(
+          'baz(A,B,C) :- string_concat(A,B,C).',
+          StarlogText),
+      sub_atom(StarlogText, _, _, _, 'is') )).
+
+% T38: convert_prolog_to_starlog is identity for clauses with no conversion targets.
+test('s2a_starlog/identity-for-plain-clause',
+    ( convert_prolog_to_starlog('plain([], _Out).', StarlogText),
+      sub_atom(StarlogText, _, _, _, 'plain'),
+      \+ sub_atom(StarlogText, _, _, _, ' is ') )).
+
+% T39: write_s2a_starlog/4 writes nothing and succeeds when OutFile is ''.
+test('s2a_starlog/no-file-written-when-outfile-empty',
+    ( write_s2a_grammar(nfsl, 'examples/input.pl', '', Grammar, _),
+      convert_s2a_grammar_to_prolog(nfsl, Grammar, Clauses, _),
+      write_s2a_starlog(nfsl, Clauses, '', Status),
+      ( Status = ok ; Status = partial(_) ) )).
+
+% T40: Partial failure (empty ClauseTexts) returns partial status with no_clauses error.
+test('s2a_starlog/partial-failure-on-empty-clauses',
+    ( write_s2a_starlog(empty_sl, [], '', Status),
+      Status = partial(Errors),
+      member(error(no_clauses, _), Errors) )).
+
+% T41: Roundtrip: append clause converts to Starlog and back to equivalent Prolog.
+test('s2a_starlog/roundtrip-append',
+    ( convert_prolog_to_starlog(
+          'foo(A,B,C) :- append(A,B,C).',
+          StarlogText),
+      starlog_to_prolog(StarlogText, PrologText),
+      sub_atom(PrologText, _, _, _, 'append') )).
+
+% T42: Roundtrip: atom_concat clause converts to Starlog and back.
+test('s2a_starlog/roundtrip-atom-concat',
+    ( convert_prolog_to_starlog(
+          'bar(A,B,C) :- atom_concat(A,B,C).',
+          StarlogText),
+      starlog_to_prolog(StarlogText, PrologText),
+      sub_atom(PrologText, _, _, _, 'atom_concat') )).
+
+% T43: Method chaining: two consecutive atom_concat calls produce chained form.
+test('s2a_starlog/method-chaining-atom-concat',
+    ( convert_prolog_to_starlog(
+          'cat3(A,B,C,R) :- atom_concat(A,B,T), atom_concat(T,C,R).',
+          StarlogText),
+      % The intermediate variable T is inlined: R is A•B•C
+      sub_atom(StarlogText, _, _, _, '•') )).
+
+% T44: Method chaining: two consecutive append calls produce chained form.
+test('s2a_starlog/method-chaining-append',
+    ( convert_prolog_to_starlog(
+          'app3(A,B,C,R) :- append(A,B,T), append(T,C,R).',
+          StarlogText),
+      sub_atom(StarlogText, _, _, _, '&') )).
+
+% T45: Generated Starlog file has .starlog extension and contains a header comment.
+test('s2a_starlog/starlog-file-has-header',
+    ( tmp_file('nsl_hdr', HBase),
+      atom_concat(HBase, '_generated.starlog', StarlogFile),
+      write_s2a_grammar(hdrtest, 'examples/input.pl', '', Grammar, _),
+      convert_s2a_grammar_to_prolog(hdrtest, Grammar, Clauses, _),
+      write_s2a_starlog(hdrtest, Clauses, StarlogFile, _Status),
+      read_file_to_string(StarlogFile, Content, []),
+      sub_string(Content, _, _, _, "Generated Starlog") )).
