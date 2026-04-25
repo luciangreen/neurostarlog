@@ -113,8 +113,8 @@ strip_trailing_period(Atom, Body) :-
     Last is Len - 1,
     sub_string(S, Last, 1, 0, "."),
     !,
-    sub_string(S, 0, Last, _, BodyS),
-    atom_string(Body, BodyS).
+    sub_string(S, 0, Last, _, BodyStr),
+    atom_string(Body, BodyStr).
 strip_trailing_period(Atom, Atom).
 
 % ---------------------------------------------------------------------------
@@ -187,7 +187,7 @@ some_is_rhs_contains([_ | Rest], Var) :-
 % True when Var appears inside Term (identity check via ==).
 
 term_contains_var(Term, Var) :-
-    Var == Term, !.
+    Term == Var, !.
 term_contains_var(Term, Var) :-
     compound(Term),
     Term =.. [_ | Args],

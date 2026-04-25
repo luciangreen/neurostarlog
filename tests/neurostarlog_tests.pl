@@ -283,7 +283,8 @@ test('s2a_starlog/append-converted-to-starlog',
     ( convert_prolog_to_starlog(
           'foo(X,Y,Z) :- append(X,Y,Z).',
           StarlogText),
-      sub_atom(StarlogText, _, _, _, 'is') )).
+      sub_atom(StarlogText, _, _, _, ' is '),
+      sub_atom(StarlogText, _, _, _, '&') )).
 
 % T36: convert_prolog_to_starlog converts atom_concat(A,B,C) → C is A•B.
 test('s2a_starlog/atom-concat-converted-to-starlog',
@@ -297,7 +298,8 @@ test('s2a_starlog/string-concat-converted-to-starlog',
     ( convert_prolog_to_starlog(
           'baz(A,B,C) :- string_concat(A,B,C).',
           StarlogText),
-      sub_atom(StarlogText, _, _, _, 'is') )).
+      sub_atom(StarlogText, _, _, _, ' is '),
+      \+ sub_atom(StarlogText, _, _, _, 'string_concat') )).
 
 % T38: convert_prolog_to_starlog is identity for clauses with no conversion targets.
 test('s2a_starlog/identity-for-plain-clause',
