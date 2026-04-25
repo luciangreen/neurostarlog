@@ -1,0 +1,500 @@
+GitHub Agent Program Requirements: NeuroStarlog
+
+Goal
+
+Build NeuroStarlog, a generator/optimiser that accepts Prolog, Starlog, or I/O examples, then outputs runnable SWI-Prolog-compatible Prolog or fully compressed Starlog.
+
+NeuroStarlog combines:
+
+* S2A for I/O-driven algorithm reconstruction.
+* NeuroProlog for correctness-preserving optimisation.
+* Starlog for compressed final syntax and method-chain/nested-call output.
+
+The uploaded repos already contain relevant foundations: S2A has spec_to_algorithm.pl, recursive &r, non-deterministic nd, constants, and tests; NeuroProlog has lexer/parser/semantic/IR/optimiser/codegen modules; Starlog has compression, method chaining, Prolog↔Starlog conversion, and Gaussian-related tests.  ￼  ￼  ￼
+
+⸻
+
+1. Core Behaviour
+
+1.1 Input modes
+
+Support these initial inputs:
+
+A. Prolog / Starlog source
+B. I/O examples
+
+Natural-language spec input is out of scope for this PR except as a documented future extension.
+
+Decision rule:
+
+If input is Prolog or Starlog source → use NP/NSL path.
+If input is I/O examples → use S2A path.
+If mixed input is supplied → allow hybrid reconstruction + optimisation.
+
+1.2 Output modes
+
+Support:
+
+--out starlog
+--out prolog
+--compress true
+--compress false
+--grammar-out FILE
+
+Default:
+
+--out starlog --compress true
+
+The default output should be fully compressed Starlog, using Starlog’s existing compression and method-chaining support. Starlog already supports compress(true) and output style options including method_chaining and nested_calls.  ￼
+
+⸻
+
+2. Pipeline
+
+2.1 Main pipeline
+
+Implement a top-level pipeline:
+
+Input
+ → classify input
+ → S2A or NP/NSL path
+ → trace-based pattern detection
+ → correctness-preserving optimisation
+ → Starlog/Prolog code generation
+ → simple pipeline log
+ → final code
+
+2.2 S2A path
+
+For I/O examples:
+
+I/O examples
+ → detect repeated substrings and non-deterministic cases
+ → generate grammar
+ → write grammar to separate file
+ → convert grammar to Prolog predicates
+ → optionally convert Prolog to Starlog
+ → run NP optimiser on generated algorithm
+ → leave unoptimisable parts unchanged
+ → output final code
+
+Required additions:
+
+src/s2a_grammar_writer.pl
+src/s2a_to_prolog_converter.pl
+src/s2a_to_starlog_converter.pl
+src/neurostarlog_pipeline.pl
+
+S2A already uses repeated structures such as &r, non-deterministic nd, variable/constants discovery, and character_breakdown_mode; preserve this model but expose it only through simple user-facing logs and files.  ￼
+
+2.3 NP/NSL path
+
+For Prolog/Starlog source:
+
+Source
+ → parse
+ → analyse
+ → generate hidden unified IR
+ → optimise
+ → regenerate Prolog
+ → optionally compress to Starlog
+
+Use the full NeuroProlog pipeline where safe, including Gaussian recursion, subterm addressing, memoisation, unfolding, pattern correlation, nested recursion, optimiser pipeline, and codegen. NeuroProlog already has these modules and tests wired into tests/run_tests.pl.  ￼
+
+⸻
+
+3. S2A Grammar Requirements
+
+3.1 I/O data substring selection
+
+Replace the earlier “a/b/c clause abstraction” wording with:
+
+I/O data substring selection
+
+Rules:
+
+[r, X]  = repeated recursive substring or repeated data structure
+[nd, X] = non-deterministic alternative
+a, b, c = placeholders for irreducible or pattern commands appearing in the spec
+
+The system must:
+
+1. detect repeated structures from I/O examples,
+2. generate grammar rules,
+3. save grammar separately,
+4. replace placeholder grammar nodes back into Prolog/Starlog predicates,
+5. produce runnable algorithm code.
+
+3.2 Grammar output
+
+When S2A succeeds partially or fully, write:
+
+out/<predicate>_grammar.pl
+out/<predicate>_generated.pl
+out/<predicate>_generated.starlog
+out/<predicate>_log.txt
+
+If S2A fails partially:
+
+Return partial algorithm + error.
+Save partial grammar and partial generated code.
+Clearly mark unsupported unresolved sections.
+
+⸻
+
+4. Optimisation Requirements
+
+4.1 Correctness boundary
+
+Strict correctness only.
+
+No approximations in v1.
+
+The optimiser must stop when correctness-preserving optimisation plateaus.
+
+4.2 Pattern detection
+
+Gaussian elimination must only run after trace-based pattern detection.
+
+Preferred trigger:
+
+trace-based variable correspondence
+
+Additional accepted triggers:
+
+repeated recurrence structure
+index progression
+polynomial-like output samples
+subterm address progression
+
+4.3 Gaussian elimination
+
+Use Gaussian elimination for:
+
+numeric recurrences
+index transformations
+linear algebra abstraction of recursion
+polynomial formula discovery where supported
+
+Do not guess coefficients.
+
+Do not hardcode closed forms.
+
+Do not build around special cases such as diagonals.
+
+NeuroProlog’s existing delivery rules already specify this: add failing tests first, implement Gaussian elimination as the universal polynomial solver, avoid guessed coefficients, avoid named structural cases, and preserve unsupported cases unchanged.  ￼
+
+4.4 Irreducible commands
+
+Pattern commands include movement/copying of:
+
+characters
+terms
+numbers
+lists
+subterms
+
+Irreducible commands include:
+
+maths where Gaussian elimination fails
+I/O
+random
+external state
+unsupported predicates
+opaque computations
+
+Irreducibles must be preserved as-is.
+
+Do not expose irreducible/critical tags in user documentation.
+
+⸻
+
+5. Hybrid S2A + NP Behaviour
+
+Support:
+
+S2A reconstructs part
+ → NP optimises that part
+ → unoptimisable parts remain unchanged
+
+Do not require the entire program to use one path.
+
+Example behaviour:
+
+S2A: reconstructs list-output relation from examples.
+NP: detects recurrence and derives closed form.
+Final: preserves unresolved I/O command unchanged.
+
+⸻
+
+6. Code Generation
+
+6.1 Prolog output
+
+Generated Prolog must:
+
+load in SWI-Prolog
+preserve original semantics
+include unchanged irreducible commands
+avoid IR-specific predicates in public docs
+
+6.2 Starlog output
+
+Generated Starlog must:
+
+use fully compressed output by default
+use method chaining where appropriate
+preserve readable predicate boundaries
+avoid exposing hidden IR
+
+Use existing Starlog conversion rules such as:
+
+string_concat(A,B,C) → C is A:B
+append(A,B,C)        → C is A&B
+atom_concat(A,B,C)   → C is A•B
+
+The uploaded Starlog implementation already contains these conversion rules.  ￼
+
+⸻
+
+7. CLI Requirements
+
+Add a command such as:
+
+swipl -q -s src/neurostarlog.pl -- \
+  --input examples/input.pl \
+  --input-type auto \
+  --out starlog \
+  --compress true \
+  --grammar-out out/grammar.pl \
+  --code-out out/result.starlog \
+  --log-out out/pipeline_log.txt
+
+Support:
+
+--input FILE
+--input-type auto|prolog|starlog|io
+--out starlog|prolog
+--compress true|false
+--grammar-out FILE
+--code-out FILE
+--log-out FILE
+--strict true
+
+Default:
+
+--input-type auto
+--out starlog
+--compress true
+--strict true
+
+⸻
+
+8. Pipeline Logs
+
+Logs must be simple, not IR-heavy.
+
+Preferred style:
+
+S2A: detected repeated pattern in input.
+S2A: generated grammar and wrote it to out/example_grammar.pl.
+NP: applied Gaussian elimination → derived n(n+1)/2.
+Final: replaced recursion with closed form.
+Final: preserved read_string/2 unchanged.
+
+Errors should include both:
+
+short user-facing message
+optional developer detail
+
+Example:
+
+Error: S2A could only generate a partial algorithm.
+Detail: unresolved non-deterministic branch did not map to a unique output predicate.
+Partial files were written to out/.
+
+⸻
+
+9. Testing Requirements
+
+Add failing tests first.
+
+Required tests
+
+1. I/O examples → grammar file generated.
+2. I/O examples → Prolog generated.
+3. I/O examples → compressed Starlog generated.
+4. Partial S2A failure returns partial code + error.
+5. Prolog source → NP optimisation → Prolog output.
+6. Prolog source → NP optimisation → compressed Starlog output.
+7. Gaussian elimination only runs after detected pattern.
+8. Unsupported maths remains unchanged.
+9. I/O, random, and external predicates remain unchanged.
+10. Fully compressed Starlog uses method chaining where possible.
+11. Generated Prolog loads in SWI-Prolog.
+12. Generated Starlog roundtrips through Starlog-to-Prolog.
+13. Logs contain simple sentences and no raw IR nodes.
+14. Unoptimisable program sections remain unchanged.
+15. Hybrid path: S2A reconstruction + NP optimisation + preserved remainder.
+
+Run:
+
+swipl -q -g "consult('tests/run_tests')" -g "run_all_tests" -t halt
+
+Also add:
+
+swipl -q -s tests/neurostarlog_tests.pl -g run_tests -t halt
+
+⸻
+
+10. Documentation Requirements
+
+Update:
+
+README.md
+NEUROSTARLOG.md
+examples/README.md
+
+Docs must show:
+
+I/O example input
+generated grammar file
+generated Prolog
+generated compressed Starlog
+pipeline log
+partial failure example
+
+Do not document internal IR predicates.
+
+Do not expose critical/irreducible tagging internals.
+
+Do document:
+
+what is supported
+what remains unchanged
+how to run
+how to test
+how to choose Prolog vs Starlog output
+
+⸻
+
+11. Staged PR Plan
+
+PR 1 — Integration skeleton
+
+Add src/neurostarlog.pl
+Add src/neurostarlog_pipeline.pl
+Add CLI parser
+Add input-type detection
+Add basic logs
+Add empty test shell
+
+PR 2 — S2A grammar output
+
+Add grammar writer
+Support [r, ...] and [nd, ...]
+Write grammar to file
+Return partial grammar on failure
+Add tests
+
+PR 3 — S2A → Prolog converter
+
+Convert grammar to runnable Prolog predicates
+Replace a/b/c placeholders with original commands
+Preserve irreducibles
+Return partial code + error if unresolved
+Add tests
+
+PR 4 — Prolog → Starlog output
+
+Use existing Starlog conversion
+Default to compress(true)
+Support method_chaining output
+Add roundtrip tests
+
+PR 5 — NP full-pipeline integration
+
+Call NeuroProlog optimiser pipeline
+Use full NP pipeline where correctness is verified
+Preserve opaque sections
+Add plateau stopping rule
+Add tests
+
+PR 6 — Gaussian/index optimisation
+
+Trace variable correspondences
+Detect recurrence/index patterns
+Run Gaussian elimination only after pattern detection
+Generate direct formulas or Prolog commands
+Leave unsupported maths unchanged
+Add tests
+
+PR 7 — Hybrid mode
+
+Allow S2A reconstruction of part of program
+Optimise reconstructed part with NP
+Merge with unchanged original or unresolved sections
+Add integration tests
+
+PR 8 — Final docs and examples
+
+Add examples
+Add README instructions
+Add unsupported-cases section
+Add feature-completion table
+Run all tests
+
+⸻
+
+12. Acceptance Criteria
+
+The PR is complete when:
+
+1. A user can input I/O examples and receive grammar + runnable Prolog/Starlog.
+2. A user can input Prolog/Starlog and receive optimised Prolog/Starlog.
+3. Default output is compressed Starlog.
+4. Gaussian elimination is used only after pattern detection.
+5. Irreducible commands are preserved.
+6. Partial S2A failure returns partial code + clear error.
+7. Logs are simple and readable.
+8. No user docs expose raw IR-specific predicates.
+9. Tests pass.
+10. Unsupported cases are documented honestly.
+
+⸻
+
+13. Feature Completion Target by End of These Requirements
+
+Feature	Target completion
+NeuroStarlog CLI wrapper	100%
+Input-type detection	100%
+Prolog input path	100%
+Starlog input path	90%
+I/O example input path	90%
+S2A grammar generation	90%
+Separate grammar file output	100%
+S2A → Prolog converter	80%
+Prolog → Starlog converter integration	90%
+Fully compressed Starlog default	90%
+Unified hidden IR integration	80%
+Full NeuroProlog pipeline integration	75%
+Trace-based pattern detection	75%
+Gaussian recurrence optimisation	80%
+Gaussian index transformation optimisation	70%
+General symbolic algebra optimisation	50%
+Hybrid S2A + NP mode	75%
+Irreducible command preservation	85%
+Partial S2A failure with partial code	85%
+Simple pipeline logs	100%
+User-facing error + developer detail	90%
+SWI-Prolog runnable output	90%
+Starlog compressed runnable output	80%
+Test suite coverage	85%
+Documentation without IR internals	100%
+Natural-language spec input	0% / future
+Approximate optimisation mode	0% / intentionally excluded
+Safety/security critical tagging UI	0% / intentionally hidden
+
+Final expected project state:
+
+NeuroStarlog v1 should be usable as a strict, correctness-preserving Prolog/Starlog generator and optimiser, with S2A for I/O-derived algorithms, NP for optimisation, and Starlog for compressed final output.
