@@ -148,6 +148,8 @@ detect_repeated_subpatterns(Inputs, true) :-
 detect_repeated_subpatterns(_, false).
 
 find_repeated_element(List) :-
+    % Exclude empty lists from repetition matching; they are structural
+    % list terminators rather than meaningful data elements.
     append(_, [X | Rest], List),
     X \= [],
     member(X, Rest).
@@ -212,17 +214,22 @@ build_grammar_rules(PredName, HasRepeated, HasGrowth, HasND, Rules, []) :-
 
 build_recursive_rule(PredName, true, _, HasND, Rule) :-
     % Detected a repeated element within at least one input → use [r, ...]
+    RepeatedItem = [r, [n, a1]],
+    FallbackItem = ['_X', [n, a1]],
     ( HasND = true ->
-        Rule = grammar_rule(PredName, [n, a1], '->', [[nd, [[r, [n, a1]], ['_X', [n, a1]]]]])
+        Rule = grammar_rule(PredName, [n, a1], '->', [[nd, [RepeatedItem, FallbackItem]]])
     ;
-        Rule = grammar_rule(PredName, [n, a1], '->', [[r, [n, a1]]])
+        Rule = grammar_rule(PredName, [n, a1], '->', [RepeatedItem])
     ).
 build_recursive_rule(PredName, false, true, HasND, Rule) :-
     % Input length grows across examples → recursive list grammar
+    ElementItem = ['_X'],
+    AltItem     = ['_Y'],
+    RecNT       = [n, a1],
     ( HasND = true ->
-        Rule = grammar_rule(PredName, [n, a1], '->', [[nd, [['_X'], ['_Y']]], [n, a1]])
+        Rule = grammar_rule(PredName, [n, a1], '->', [[nd, [ElementItem, AltItem]], RecNT])
     ;
-        Rule = grammar_rule(PredName, [n, a1], '->', [['_X'], [n, a1]])
+        Rule = grammar_rule(PredName, [n, a1], '->', [ElementItem, RecNT])
     ).
 build_recursive_rule(_PredName, false, false, _HasND, none).
 

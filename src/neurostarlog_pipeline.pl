@@ -83,7 +83,6 @@ run_pipeline(Options) :-
     ( LogOut \= '' ->
         write_log_file(LogOut)
     ; true ),
-
     pipeline_log(info, ['NeuroStarlog pipeline complete.']).
 
 %% run_s2a_path(+InputFile, +OutMode, +Compress, +GrammarOut, +CodeOut)
@@ -110,7 +109,7 @@ run_s2a_path(InputFile, _OutMode, _Compress, GrammarOut, _CodeOut) :-
 
     % Log outcome.
     ( Status = ok ->
-        pipeline_log(info, ['S2A: detected repeated pattern in input.']),
+        pipeline_log(info, ['S2A: grammar generation completed successfully.']),
         pipeline_log(info, ['S2A: generated grammar and wrote it to ', GrammarFile, '.'])
     ;
         Status = partial(Errors),
