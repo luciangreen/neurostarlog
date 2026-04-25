@@ -1,6 +1,9 @@
 % neurostarlog_pipeline.pl
 % Main pipeline for NeuroStarlog.
 % PR 1: Integration skeleton — input-type detection and basic pipeline log.
+% PR 2: S2A grammar output — grammar writer integrated into S2A path.
+
+:- include('s2a_grammar_writer.pl').
 
 %% detect_input_type(+File, -Type)
 %
@@ -80,16 +83,43 @@ run_pipeline(Options) :-
     ( LogOut \= '' ->
         write_log_file(LogOut)
     ; true ),
-
     pipeline_log(info, ['NeuroStarlog pipeline complete.']).
 
 %% run_s2a_path(+InputFile, +OutMode, +Compress, +GrammarOut, +CodeOut)
 %
-% Placeholder S2A path (PR 2 will implement grammar writing).
+% PR 2: Read I/O examples, detect patterns, and write grammar to file.
 
-run_s2a_path(InputFile, _OutMode, _Compress, _GrammarOut, _CodeOut) :-
+run_s2a_path(InputFile, _OutMode, _Compress, GrammarOut, _CodeOut) :-
     pipeline_log(info, ['S2A: reading I/O examples from ', InputFile, '.']),
-    pipeline_log(info, ['S2A: grammar generation not yet implemented (PR 2).']).
+
+    % Derive a predicate name from the input file base name.
+    file_base_name(InputFile, BaseName),
+    file_name_extension(PredName, _, BaseName),
+
+    % Determine grammar output file path.
+    ( GrammarOut \= '' ->
+        GrammarFile = GrammarOut
+    ;
+        atom_concat('out/', PredName, Prefix),
+        atom_concat(Prefix, '_grammar.pl', GrammarFile)
+    ),
+
+    % Generate and write grammar.
+    write_s2a_grammar(PredName, InputFile, GrammarFile, _Grammar, Status),
+
+    % Log outcome.
+    ( Status = ok ->
+        pipeline_log(info, ['S2A: grammar generation completed successfully.']),
+        pipeline_log(info, ['S2A: generated grammar and wrote it to ', GrammarFile, '.'])
+    ;
+        Status = partial(Errors),
+        pipeline_log(info, ['S2A: partial grammar written to ', GrammarFile, '.']),
+        forall(
+            member(error(Type, Detail), Errors),
+            ( format(atom(Msg), '~w: ~w', [Type, Detail]),
+              pipeline_log(error, ['S2A grammar error — ', Msg]) )
+        )
+    ).
 
 %% run_np_path(+InputFile, +InputType, +OutMode, +Compress, +CodeOut)
 %
