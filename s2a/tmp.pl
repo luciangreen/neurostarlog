@@ -1,0 +1,39 @@
+check_grammar(R) :-
+    catch((findall(_,(member(S,["[[input,[['A',[[\"fulfilled\",\"plus\"],[\"fulfilled\",\"plus\"],[\"fulfilled\",\"plus\"],[\"disadvantages\",\"minus\"],[\"fulfilled\",\"plus\"]]]]],[output,[['B',success]]]]"]),term_to_atom(S2,S),flatten_keep_brackets(S2,S1),append([_],S4,S1),append(S3,[_],S4),once(phrase(a1,S3))),A),((length(["[[input,[['A',[[\"fulfilled\",\"plus\"],[\"fulfilled\",\"plus\"],[\"fulfilled\",\"plus\"],[\"disadvantages\",\"minus\"],[\"fulfilled\",\"plus\"]]]]],[output,[['B',success]]]]"],L),length(A,L))->R="success";R="fail")),_, fail),
+  !.
+a1-->["["],
+[input],
+["["],
+["["],
+['A'],
+["["],
+a2,["]"],
+["]"],
+["]"],
+["]"],
+["["],
+[output],
+["["],
+["["],
+['B'],
+[success],
+["]"],
+["]"],
+["]"].
+a2-->[].
+a2-->a3,a4,a2.
+a3-->[].
+a3-->["["],
+["fulfilled"],
+["plus"],
+["]"],
+["["],
+["disadvantages"],
+["minus"],
+["]"].
+a4-->[].
+a4-->["["],
+["fulfilled"],
+["plus"],
+["]"],
+a4.
