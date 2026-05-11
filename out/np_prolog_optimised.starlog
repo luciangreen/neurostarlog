@@ -1,0 +1,23 @@
+% Generated Starlog — NeuroStarlog NP optimiser (PR 5).
+
+positive(_14608) :-
+    _14608>0.
+
+greet(_14794) :-
+    write(_14794),
+    nl.
+
+print_value(_15044) :-
+    writeln(_15044).
+
+roll_die(_15236) :-
+    random_between(1,6,_15236).
+
+main(_15428) :-
+    _15428>0,
+    write(_15428),
+    nl.
+
+square(_15742,_15744) :-
+    _15744 is _15742*_15742.
+

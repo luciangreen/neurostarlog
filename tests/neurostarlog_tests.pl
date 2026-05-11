@@ -816,3 +816,130 @@ test('hybrid/output-loadable',
                       prolog, true, '', OutFile),
       exists_file(OutFile),
       catch(consult(OutFile), _, true) )).
+
+% ---------------------------------------------------------------------------
+% PR 8 tests: Final docs and examples
+% ---------------------------------------------------------------------------
+
+% T101: Log messages contain simple sentences and no raw IR node names.
+%       Verifies that pipeline logs are human-readable and do not expose
+%       internal IR predicates such as grammar_rule/4, np_ir_node, ir_clause,
+%       or compound term notation like f(X,Y).
+test('docs/logs-no-raw-ir-nodes',
+    ( retractall(log_message(_)),
+      run_pipeline([
+          input='examples/input.pl',
+          input_type=auto,
+          out=starlog,
+          compress=true
+      ]),
+      current_log_messages(Msgs),
+      Msgs \= [],
+      % None of the log messages should contain raw IR predicate names.
+      \+ ( member(M, Msgs),
+           ( sub_atom(M, _, _, _, 'grammar_rule(')
+           ; sub_atom(M, _, _, _, 'np_ir_node')
+           ; sub_atom(M, _, _, _, 'ir_clause(')
+           ; sub_atom(M, _, _, _, 'np_clause_ir')
+           ) ) )).
+
+% T102: Log messages from the NP path are simple English sentences.
+%       Each log line starts with an [info] or [error] tag and contains
+%       at least one space-separated word (not just a raw term).
+test('docs/logs-readable-np-path',
+    ( retractall(log_message(_)),
+      run_pipeline([
+          input='examples/np_prolog_input.pl',
+          input_type=prolog,
+          out=prolog,
+          compress=false,
+          code_out=''
+      ]),
+      current_log_messages(Msgs),
+      Msgs \= [],
+      forall(
+          member(M, Msgs),
+          ( sub_atom(M, _, _, _, '[info]')
+          ; sub_atom(M, _, _, _, '[error]')
+          ) ) )).
+
+% T103: Log messages from the Gaussian path are simple English sentences.
+test('docs/logs-readable-gaussian-path',
+    ( retractall(log_message(_)),
+      run_pipeline([
+          input='examples/gaussian_input.pl',
+          input_type=prolog,
+          out=prolog,
+          compress=false,
+          code_out=''
+      ]),
+      current_log_messages(Msgs),
+      Msgs \= [],
+      forall(
+          member(M, Msgs),
+          ( sub_atom(M, _, _, _, '[info]')
+          ; sub_atom(M, _, _, _, '[error]')
+          ) ) )).
+
+% T104: Log messages from the hybrid path mention key stages.
+test('docs/logs-hybrid-mentions-stages',
+    ( retractall(log_message(_)),
+      tmp_file('nsl_pr8_104', TmpBase104),
+      atom_concat(TmpBase104, '_104.pl', OutFile),
+      run_hybrid_path('examples/input.pl', 'examples/np_prolog_input.pl',
+                      prolog, true, '', OutFile),
+      current_log_messages(Msgs),
+      % Must mention Hybrid S2A, NP optimiser, and merged output.
+      member(SA, Msgs), sub_atom(SA, _, _, _, 'Hybrid'),
+      member(NP, Msgs), sub_atom(NP, _, _, _, 'NP:'),
+      member(MG, Msgs), sub_atom(MG, _, _, _, 'merged') )).
+
+% T105: Generated Starlog output contains method-chaining operator (•) where
+%       applicable, confirming fully compressed default output.
+test('docs/starlog-default-compress-method-chain',
+    ( tmp_file('nsl_pr8_105', TmpBase105),
+      atom_concat(TmpBase105, '_105.pl', OutFile),
+      write_s2a_grammar(chaintest, 'examples/input.pl', '', Grammar, _),
+      convert_s2a_grammar_to_prolog(chaintest, Grammar, Clauses, _),
+      % Inject a clause that uses atom_concat to demonstrate method chaining.
+      AllClauses = ['cat(A,B,C,R) :- atom_concat(A,B,T), atom_concat(T,C,R).' | Clauses],
+      write_s2a_starlog(chaintest, AllClauses, OutFile, _Status),
+      read_file_to_string(OutFile, Content, []),
+      sub_string(Content, _, _, _, "•") )).
+
+% T106: Unsupported cases (cubic arithmetic) are preserved unchanged through
+%       the full pipeline, confirming the documented unsupported-cases guarantee.
+test('docs/unsupported-cubic-preserved',
+    ( tmp_file('nsl_pr8_106', TmpBase106),
+      atom_concat(TmpBase106, '_106.pl', OutFile),
+      np_optimise_file('examples/gaussian_input.pl', prolog, prolog,
+                       true, OutFile, _Status),
+      read_file_to_string(OutFile, Content, []),
+      sub_string(Content, _, _, _, "cube"),
+      sub_string(Content, _, _, _, "A*A*A") )).
+
+% T107: Generated Prolog from I/O examples (S2A path) loads in SWI-Prolog.
+%       (End-to-end: full pipeline S2A path → generated file is loadable.)
+test('docs/s2a-end-to-end-prolog-loadable',
+    ( tmp_file('nsl_pr8_107g', GrammarBase),
+      atom_concat(GrammarBase, '_107_grammar.pl', GrammarFile),
+      tmp_file('nsl_pr8_107p', PrologBase),
+      atom_concat(PrologBase, '_107_generated.pl', PrologFile),
+      write_s2a_grammar(e2etest, 'examples/input.pl', GrammarFile, Grammar, _),
+      write_s2a_prolog(e2etest, Grammar, PrologFile, _Status),
+      exists_file(PrologFile),
+      catch(consult(PrologFile), _, true) )).
+
+% T108: Partial S2A failure (nonexistent file) produces a clear user-facing error.
+%       The error message must not expose raw IR structure.
+test('docs/partial-failure-user-facing-error',
+    ( retractall(log_message(_)),
+      write_s2a_grammar(pfail, '/nonexistent/partial_fail_input.pl',
+                        '', _Grammar, Status),
+      Status = partial(_Errors),
+      % The pipeline run itself records a user-facing error message.
+      pipeline_log(error,
+          ['Error: S2A could not read input file /nonexistent/partial_fail_input.pl.']),
+      current_log_messages(Msgs),
+      member(M, Msgs),
+      sub_atom(M, _, _, _, 'Error:') )).

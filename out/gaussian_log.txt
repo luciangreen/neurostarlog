@@ -1,0 +1,11 @@
+[info] NeuroStarlog pipeline starting.
+[info] Input type detected: prolog
+[info] Using NP/NSL path for source input.
+[info] NP: reading prolog source from examples/gaussian_input.pl.
+[info] NP: loaded examples/gaussian_input.pl — applying optimisation pipeline.
+[info] NP: applied Gaussian elimination.
+[info] NP: linear/2 replaced with polynomial closed form.
+[info] NP: tri/2 replaced with polynomial closed form.
+[info] NP: optimisation plateau reached after 2 pass(es).
+[info] NP: wrote optimised Prolog to out/gaussian_optimised.pl.
+[info] NP: optimisation completed successfully.
