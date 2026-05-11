@@ -503,9 +503,8 @@ gauss_sum_terms([T | Rest], T + RestExpr) :-
 % index argument value and checking the result matches the expected output.
 
 gauss_check_formula(Clause, Name, Arity, TestPoints) :-
-    Clause = (Head :- (OutVar is PolyExpr)),
+    Clause = (Head :- (_OutVar is PolyExpr)),
     functor(Head, Name, Arity),
-    ignore(OutVar),      % suppress singleton warning; OutVar is intentionally unbound
     forall(
         member(N-ExpectedY, TestPoints),
         ( copy_term(t(Head, PolyExpr), t(Head2, Expr2)),

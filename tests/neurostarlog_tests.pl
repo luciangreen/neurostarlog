@@ -574,6 +574,8 @@ test('gaussian/gauss-solve-2x2',
 
 % T76: gauss_solve/3 correctly solves a 3x3 system (triangular numbers).
 %      Points: (0,0), (1,1), (2,3) → coefficients [0, 1/2, 1/2].
+%      Both A1 and A2 are 1/2 because the triangular-numbers polynomial is
+%      0 + (1/2)*N + (1/2)*N^2  =  N*(N+1)/2.
 test('gaussian/gauss-solve-3x3-tri',
     ( gauss_solve([[1,0,0],[1,1,1],[1,2,4]], [0,1,3], [A0, A1, A2]),
       A0 =:= 0,
@@ -642,12 +644,12 @@ test('gaussian/linear-closed-form-correct',
       np_make_closed_form_clause(linear, 2, Coeffs, Clause),
       Clause = (Head :- (OutVar is PolyExpr)),
       % Verify at N=0: Out=2
-      copy_term(t(Head, PolyExpr, OutVar), t(H0, E0, _O0)),
+      copy_term(t(Head, PolyExpr, OutVar), t(H0, E0, _)),
       arg(1, H0, 0),
       catch(Val0 is E0, _, fail),
       Val0 =:= 2,
       % Verify at N=4: Out = 2+3*4 = 14
-      copy_term(t(Head, PolyExpr, OutVar), t(H4, E4, _O4)),
+      copy_term(t(Head, PolyExpr, OutVar), t(H4, E4, _)),
       arg(1, H4, 4),
       catch(Val4 is E4, _, fail),
       Val4 =:= 14 )).
