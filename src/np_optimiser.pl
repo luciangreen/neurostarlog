@@ -1,5 +1,6 @@
 % np_optimiser.pl
 % PR 5: NeuroProlog full-pipeline integration.
+% PR 6: Gaussian/index optimisation integrated via np_gaussian_optimise_pass.
 %
 % Implements a correctness-preserving Prolog optimiser with plateau stopping.
 %
@@ -233,12 +234,14 @@ np_clause_canonical(Clause, Atom) :-
 %
 % Apply one full pass of all correctness-preserving optimisations.
 
-np_optimise_pass(Clauses, Clauses3, Log) :-
-    np_remove_true_pass(Clauses,  Clauses2, Log1),
-    np_remove_fail_pass(Clauses2, Clauses2b, Log1b),
+np_optimise_pass(Clauses, Clauses4, Log) :-
+    np_remove_true_pass(Clauses,   Clauses2, Log1),
+    np_remove_fail_pass(Clauses2,  Clauses2b, Log1b),
     np_unfold_deterministic_pass(Clauses2b, Clauses3, Log2),
+    np_gaussian_optimise_pass(Clauses3,    Clauses4, Log3),
     append(Log1,  Log1b, LogA),
-    append(LogA,  Log2,  Log).
+    append(LogA,  Log2,  LogB),
+    append(LogB,  Log3,  Log).
 
 % ---------------------------------------------------------------------------
 % Optimisation 1: Remove `true` from conjunctions
