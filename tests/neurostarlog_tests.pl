@@ -359,6 +359,12 @@ test('s2a_starlog/roundtrip-atom-concat',
       starlog_to_prolog(StarlogText, PrologText),
       sub_atom(PrologText, _, _, _, 'atom_concat') )).
 
+% T42b: Direct Starlog two-operand expression roundtrips to one Prolog call.
+test('s2a_starlog/roundtrip-two-operand-base-case',
+    ( starlog_to_prolog('bar(A,B,C) :- C is A•B.', PrologText),
+      findall(Pos, sub_atom(PrologText, Pos, _, _, 'atom_concat'), Ps),
+      length(Ps, 1) )).
+
 % T43: Method chaining: two consecutive atom_concat calls produce chained form.
 test('s2a_starlog/method-chaining-atom-concat',
     ( convert_prolog_to_starlog(
