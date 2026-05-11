@@ -272,8 +272,8 @@ expr_operands(_Op, Expr, [Expr]).
 build_chain_goals(Functor, [A, B], OutVar, [Goal]) :-
     Goal =.. [Functor, A, B, OutVar].
 build_chain_goals(Functor, [A, B | Rest], OutVar, [Goal | Goals]) :-
-    Goal =.. [Functor, A, B, IntermediateVar],
-    build_chain_goals(Functor, [IntermediateVar | Rest], OutVar, Goals).
+    Goal =.. [Functor, A, B, TempVar],
+    build_chain_goals(Functor, [TempVar | Rest], OutVar, Goals).
 
 % ---------------------------------------------------------------------------
 % Goal list helpers
