@@ -22,6 +22,14 @@
 %   grammar_rule(P, [n,a1], '->', [[nd, Alts], [n,a1]])
 %       → one clause per alternative, each including a recursive call.
 %
+%   grammar_rule(P, [n,a1], '->', [[a, Cmd], [n,a1]])
+%       → placeholder replacement:
+%         P([_X|T_], Out_) :- Cmd, P(T_, Out_).
+%
+%   grammar_rule(P, [n,a1], '->', [[Cmd], [n,a1]])
+%       → irreducible command preserved:
+%         P([_X|T_], Out_) :- Cmd, P(T_, Out_).
+%
 % Irreducible grammar items (unrecognised patterns) are preserved with
 % an UNRESOLVED comment; partial code is still written to the output file.
 %
@@ -117,6 +125,68 @@ rhs_to_clause_texts(Pred, [[nd, Alts], [n, a1]], Clauses, Errors) :-
 rhs_to_clause_texts(Pred, [[nd, Alts]], Clauses, Errors) :-
     convert_nd_alts(Pred, [], Alts, Clauses, Errors).
 
+% Placeholder replacement with command and recursion:
+% [[a|b|c, Cmd], [n,a1]]
+rhs_to_clause_texts(Pred, [[Placeholder, Cmd], [n, a1]], [Text], []) :-
+    placeholder_symbol(Placeholder),
+    callable(Cmd),
+    !,
+    cmd_to_atom(Cmd, CmdAtom),
+    format(atom(Text),
+        '~w([_X|T_], Out_) :-\n    ~w,\n    ~w(T_, Out_).',
+        [Pred, CmdAtom, Pred]).
+
+% Placeholder replacement with command only:
+% [[a|b|c, Cmd]]
+rhs_to_clause_texts(Pred, [[Placeholder, Cmd]], [Text], []) :-
+    placeholder_symbol(Placeholder),
+    callable(Cmd),
+    !,
+    cmd_to_atom(Cmd, CmdAtom),
+    format(atom(Text),
+        '~w(_In, _Out) :-\n    ~w.',
+        [Pred, CmdAtom]).
+
+% Placeholder without a command mapping (recursive form) -> partial failure.
+rhs_to_clause_texts(Pred, [[Placeholder], [n, a1]], [Text],
+                    [error(unresolved_placeholder, Pred-Placeholder)]) :-
+    placeholder_symbol(Placeholder),
+    !,
+    format(atom(Text),
+        '~w([_X|T_], Out_) :-\n    % UNRESOLVED: placeholder ~w had no command mapping.\n    ~w(T_, Out_).',
+        [Pred, Placeholder, Pred]).
+
+% Placeholder without a command mapping (non-recursive form) -> partial failure.
+rhs_to_clause_texts(Pred, [[Placeholder]], [Text],
+                    [error(unresolved_placeholder, Pred-Placeholder)]) :-
+    placeholder_symbol(Placeholder),
+    !,
+    format(atom(Text),
+        '% UNRESOLVED: ~w placeholder ~w had no command mapping.',
+        [Pred, Placeholder]).
+
+% Preserve an irreducible command with recursion:
+% [[Cmd], [n,a1]]
+rhs_to_clause_texts(Pred, [[Cmd], [n, a1]], [Text], []) :-
+    callable(Cmd),
+    \+ grammar_reserved_item(Cmd),
+    !,
+    cmd_to_atom(Cmd, CmdAtom),
+    format(atom(Text),
+        '~w([_X|T_], Out_) :-\n    ~w,\n    ~w(T_, Out_).',
+        [Pred, CmdAtom, Pred]).
+
+% Preserve an irreducible command without recursion:
+% [[Cmd]]
+rhs_to_clause_texts(Pred, [[Cmd]], [Text], []) :-
+    callable(Cmd),
+    \+ grammar_reserved_item(Cmd),
+    !,
+    cmd_to_atom(Cmd, CmdAtom),
+    format(atom(Text),
+        '~w(_In, _Out) :-\n    ~w.',
+        [Pred, CmdAtom]).
+
 % Single variable element (irreducible, no recursion): [['_X']]
 rhs_to_clause_texts(Pred, [['_X']], [Text],
                     [error(unresolved_element, Pred)]) :-
@@ -153,6 +223,26 @@ convert_nd_alts(Pred, Suffix, [Alt|Alts], Clauses, Errors) :-
     convert_nd_alts(Pred, Suffix, Alts, RestClauses, RestErrors),
     append(AltClauses, RestClauses, Clauses),
     append(AltErrors, RestErrors, Errors).
+
+% ---------------------------------------------------------------------------
+% Placeholder/command helpers
+% ---------------------------------------------------------------------------
+
+placeholder_symbol(a).
+placeholder_symbol(b).
+placeholder_symbol(c).
+
+grammar_reserved_item('_X').
+grammar_reserved_item('_Y').
+grammar_reserved_item([n, _]).
+grammar_reserved_item([r, _]).
+grammar_reserved_item([nd, _]).
+grammar_reserved_item(Item) :-
+    placeholder_symbol(Item).
+
+cmd_to_atom(Cmd, Atom) :-
+    with_output_to(atom(Atom),
+        write_term(Cmd, [quoted(true), ignore_ops(false)])).
 
 % ---------------------------------------------------------------------------
 % File writer
