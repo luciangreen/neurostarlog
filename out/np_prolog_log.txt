@@ -1,0 +1,11 @@
+[info] NeuroStarlog pipeline starting.
+[info] Input type detected: prolog
+[info] Using NP/NSL path for source input.
+[info] NP: reading prolog source from examples/np_prolog_input.pl.
+[info] NP: loaded examples/np_prolog_input.pl — applying optimisation pipeline.
+[info] NP: removed redundant true/0 goals.
+[info] NP: unfolded 1 deterministic helper predicate(s).
+[info] NP: optimisation plateau reached after 2 pass(es).
+[info] NP: wrote optimised Prolog to out/np_prolog_optimised.pl.
+[info] NP: wrote Starlog to out/np_prolog_optimised.starlog.
+[info] NP: optimisation completed successfully.

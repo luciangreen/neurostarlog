@@ -1,0 +1,10 @@
+[info] NeuroStarlog pipeline starting.
+[info] Input type detected: io_examples
+[info] Using S2A path for I/O examples.
+[info] S2A: reading I/O examples from examples/input.pl.
+[info] S2A: grammar generation completed successfully.
+[info] S2A: generated grammar and wrote it to out/input_grammar.pl.
+[info] S2A: partial Prolog written to out/input_generated.pl.
+[error] S2A Prolog error — unresolved_combination: input
+[info] S2A: Starlog conversion completed successfully.
+[info] S2A: generated Starlog and wrote it to out/input_generated.starlog.
