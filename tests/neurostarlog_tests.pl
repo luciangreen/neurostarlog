@@ -614,6 +614,7 @@ test('np/mixed-optimisation-preserves-opaque',
       ],
       np_preserve_opaque_sections(Clauses, Optimised, 100, _Log),
       member((helper(H) :- H > 0), Optimised),
+      \+ member((helper(_) :- true, _), Optimised),
       member((emit(E) :- true, writeln(E)), Optimised),
       member((main(M) :- helper(M)), Optimised) )).
 
