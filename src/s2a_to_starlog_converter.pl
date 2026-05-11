@@ -166,7 +166,7 @@ apply_method_chaining_term(Term, Term).
 inline_is_intermediates([], []).
 inline_is_intermediates([(T is Expr) | Rest], Result) :-
     var(T),
-    some_is_rhs_contains(Rest, T),
+    safe_to_inline_is_intermediate(Rest, T),
     !,
     T = Expr,          % propagate T's definition into every later reference
     inline_is_intermediates(Rest, Result).
@@ -181,6 +181,31 @@ some_is_rhs_contains([(_ is RHS) | _], Var) :-
     term_contains_var(RHS, Var), !.
 some_is_rhs_contains([_ | Rest], Var) :-
     some_is_rhs_contains(Rest, Var).
+
+%% safe_to_inline_is_intermediate(+Goals, +Var)
+%
+% Var can be inlined only when:
+%   1) It appears in at least one later is/2 RHS.
+%   2) It does not appear in any non-is goal.
+%   3) It is not assigned again as an is/2 LHS.
+
+safe_to_inline_is_intermediate(Goals, Var) :-
+    some_is_rhs_contains(Goals, Var),
+    \+ appears_in_non_is_goal(Goals, Var),
+    \+ appears_as_is_lhs(Goals, Var).
+
+appears_in_non_is_goal([G | _], Var) :-
+    \+ is_is_goal(G),
+    term_contains_var(G, Var), !.
+appears_in_non_is_goal([_ | Rest], Var) :-
+    appears_in_non_is_goal(Rest, Var).
+
+appears_as_is_lhs([(LHS is _) | _], Var) :-
+    LHS == Var, !.
+appears_as_is_lhs([_ | Rest], Var) :-
+    appears_as_is_lhs(Rest, Var).
+
+is_is_goal((_ is _)).
 
 %% term_contains_var(+Term, +Var)
 %
@@ -210,10 +235,45 @@ transform_term_to_prolog(Fact, Fact).
 %
 % Reverse the Starlog rules back to standard Prolog predicates.
 
-transform_goal_to_prolog((C is A & B), append(A, B, C)) :- !.
-transform_goal_to_prolog((C is A • B), atom_concat(A, B, C)) :- !.
-transform_goal_to_prolog((C is A : B), string_concat(A, B, C)) :- !.
+transform_goal_to_prolog((C is Expr), PrologGoal) :-
+    starlog_expr_to_prolog_goals(Expr, C, PrologGoal), !.
 transform_goal_to_prolog(Goal, Goal).
+
+%% starlog_expr_to_prolog_goals(+Expr, +OutVar, -Goals)
+%
+% Expand Starlog operator expressions into equivalent Prolog predicate goals.
+% Supports method-chained expressions:
+%   R is A•B•C  ->  atom_concat(A,B,T), atom_concat(T,C,R)
+%   R is A&B&C  ->  append(A,B,T), append(T,C,R)
+%   R is A:B:C  ->  string_concat(A,B,T), string_concat(T,C,R)
+
+starlog_expr_to_prolog_goals(Expr, OutVar, Goals) :-
+    expr_operands(&, Expr, Ops), Ops = [_,_|_], !,
+    build_chain_goals(append, Ops, OutVar, GoalList),
+    list_to_goals(GoalList, Goals).
+starlog_expr_to_prolog_goals(Expr, OutVar, Goals) :-
+    expr_operands(•, Expr, Ops), Ops = [_,_|_], !,
+    build_chain_goals(atom_concat, Ops, OutVar, GoalList),
+    list_to_goals(GoalList, Goals).
+starlog_expr_to_prolog_goals(Expr, OutVar, Goals) :-
+    expr_operands(:, Expr, Ops), Ops = [_,_|_], !,
+    build_chain_goals(string_concat, Ops, OutVar, GoalList),
+    list_to_goals(GoalList, Goals).
+
+expr_operands(Op, Expr, Ops) :-
+    compound(Expr),
+    Expr =.. [Op, L, R],
+    !,
+    expr_operands(Op, L, LeftOps),
+    expr_operands(Op, R, RightOps),
+    append(LeftOps, RightOps, Ops).
+expr_operands(_Op, Expr, [Expr]).
+
+build_chain_goals(Functor, [A, B], OutVar, [Goal]) :-
+    Goal =.. [Functor, A, B, OutVar].
+build_chain_goals(Functor, [A, B | Rest], OutVar, [Goal | Goals]) :-
+    Goal =.. [Functor, A, B, MidVar],
+    build_chain_goals(Functor, [MidVar | Rest], OutVar, Goals).
 
 % ---------------------------------------------------------------------------
 % Goal list helpers
