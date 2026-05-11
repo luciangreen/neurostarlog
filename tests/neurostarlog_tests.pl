@@ -359,6 +359,12 @@ test('s2a_starlog/roundtrip-atom-concat',
       starlog_to_prolog(StarlogText, PrologText),
       sub_atom(PrologText, _, _, _, 'atom_concat') )).
 
+% T42b: Direct Starlog two-operand expression roundtrips to one Prolog call.
+test('s2a_starlog/roundtrip-two-operand-atom-concat-base-case',
+    ( starlog_to_prolog('bar(A,B,C) :- C is A•B.', PrologText),
+      findall(Pos, sub_atom(PrologText, Pos, _, _, 'atom_concat'), Ps),
+      length(Ps, 1) )).
+
 % T43: Method chaining: two consecutive atom_concat calls produce chained form.
 test('s2a_starlog/method-chaining-atom-concat',
     ( convert_prolog_to_starlog(
@@ -374,7 +380,15 @@ test('s2a_starlog/method-chaining-append',
           StarlogText),
       sub_atom(StarlogText, _, _, _, '&') )).
 
-% T45: Generated Starlog file has .starlog extension and contains a header comment.
+% T45: Method chaining safety: keep intermediate definition when used by non-is goals.
+test('s2a_starlog/method-chaining-safe-with-non-is-use',
+    ( convert_prolog_to_starlog(
+          'mix(A,B,R) :- atom_concat(A,B,T), writeln(T), atom_concat(T,B,R).',
+          StarlogText),
+      sub_atom(StarlogText, _, _, _, 'T is A•B'),
+      sub_atom(StarlogText, _, _, _, 'writeln(T)') )).
+
+% T46: Generated Starlog file has .starlog extension and contains a header comment.
 test('s2a_starlog/starlog-file-has-header',
     ( tmp_file('nsl_hdr', HBase),
       atom_concat(HBase, '_generated.starlog', StarlogFile),
@@ -383,6 +397,28 @@ test('s2a_starlog/starlog-file-has-header',
       write_s2a_starlog(hdrtest, Clauses, StarlogFile, _Status),
       read_file_to_string(StarlogFile, Content, []),
       sub_string(Content, _, _, _, "Generated Starlog") )).
+
+% T47: Roundtrip method-chained atom_concat expands back to Prolog predicate chain.
+test('s2a_starlog/roundtrip-method-chained-atom-concat',
+    ( convert_prolog_to_starlog(
+          'cat3(A,B,C,R) :- atom_concat(A,B,T), atom_concat(T,C,R).',
+          StarlogText),
+      starlog_to_prolog(StarlogText, PrologText),
+      findall(Pos, sub_atom(PrologText, Pos, _, _, 'atom_concat'), Ps),
+      length(Ps, N),
+      N >= 2,
+      \+ sub_atom(PrologText, _, _, _, '•') )).
+
+% T48: Roundtrip method-chained append expands back to Prolog predicate chain.
+test('s2a_starlog/roundtrip-method-chained-append',
+    ( convert_prolog_to_starlog(
+          'app3(A,B,C,R) :- append(A,B,T), append(T,C,R).',
+          StarlogText),
+      starlog_to_prolog(StarlogText, PrologText),
+      findall(Pos, sub_atom(PrologText, Pos, _, _, 'append'), Ps),
+      length(Ps, N),
+      N >= 2,
+      \+ sub_atom(PrologText, _, _, _, '&') )).
 
 % ---------------------------------------------------------------------------
 % PR 5 tests: NP full-pipeline integration
