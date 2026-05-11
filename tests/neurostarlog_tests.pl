@@ -697,3 +697,122 @@ test('gaussian/no-gaussian-on-np-prolog-input',
       np_load_clauses('examples/np_prolog_input.pl', Clauses, []),
       np_plateau_optimise(Clauses, _, 100, Log),
       \+ member('NP: applied Gaussian elimination.', Log) )).
+
+% ---------------------------------------------------------------------------
+% PR 7 tests: Hybrid mode (S2A reconstruction + NP optimisation + preserved aux)
+% ---------------------------------------------------------------------------
+
+% T91: run_hybrid_path/6 with an I/O examples file and no aux file succeeds.
+test('hybrid/run-hybrid-path-io-only',
+    ( retractall(log_message(_)),
+      tmp_file('nsl_hyb91', Base),
+      atom_concat(Base, '_hyb91.pl', OutFile),
+      run_hybrid_path('examples/input.pl', '', prolog, true, '', OutFile),
+      exists_file(OutFile) )).
+
+% T92: run_hybrid_path/6 with an I/O file and an auxiliary Prolog file succeeds.
+test('hybrid/run-hybrid-path-with-aux',
+    ( retractall(log_message(_)),
+      tmp_file('nsl_hyb92', Base),
+      atom_concat(Base, '_hyb92.pl', OutFile),
+      run_hybrid_path('examples/input.pl', 'examples/np_prolog_input.pl',
+                      prolog, true, '', OutFile),
+      exists_file(OutFile) )).
+
+% T93: Hybrid output contains content from both the S2A-generated section
+%      and the auxiliary Prolog predicates.
+test('hybrid/output-contains-both-sections',
+    ( retractall(log_message(_)),
+      tmp_file('nsl_hyb93', Base),
+      atom_concat(Base, '_hyb93.pl', OutFile),
+      run_hybrid_path('examples/input.pl', 'examples/np_prolog_input.pl',
+                      prolog, true, '', OutFile),
+      read_file_to_string(OutFile, Content, []),
+      % From the S2A section: should contain the predicate name from input.pl
+      sub_string(Content, _, _, _, "input"),
+      % From the auxiliary section: at least one predicate from np_prolog_input.pl
+      sub_string(Content, _, _, _, "writeln") )).
+
+% T94: Auxiliary Prolog clauses are preserved unchanged in the hybrid output.
+%      square/2 is an unsupported arithmetic predicate that NP cannot optimise.
+test('hybrid/aux-predicates-preserved-unchanged',
+    ( retractall(log_message(_)),
+      tmp_file('nsl_hyb94', Base),
+      atom_concat(Base, '_hyb94.pl', OutFile),
+      run_hybrid_path('examples/input.pl', 'examples/np_prolog_input.pl',
+                      prolog, true, '', OutFile),
+      read_file_to_string(OutFile, Content, []),
+      % square/2 uses unsupported arithmetic — must be preserved.
+      sub_string(Content, _, _, _, "square") )).
+
+% T95: The hybrid log contains a message about S2A grammar generation.
+test('hybrid/log-mentions-s2a',
+    ( retractall(log_message(_)),
+      tmp_file('nsl_hyb95', Base),
+      atom_concat(Base, '_hyb95.pl', OutFile),
+      run_hybrid_path('examples/input.pl', '', prolog, true, '', OutFile),
+      current_log_messages(Msgs),
+      member(M, Msgs),
+      sub_atom(M, _, _, _, 'Hybrid') )).
+
+% T96: The hybrid log contains a message about NP optimisation.
+test('hybrid/log-mentions-np',
+    ( retractall(log_message(_)),
+      tmp_file('nsl_hyb96', Base),
+      atom_concat(Base, '_hyb96.pl', OutFile),
+      run_hybrid_path('examples/input.pl', '', prolog, true, '', OutFile),
+      current_log_messages(Msgs),
+      member(M, Msgs),
+      sub_atom(M, _, _, _, 'NP:') )).
+
+% T97: run_pipeline/1 in hybrid mode (explicit input_type=hybrid) produces an output file.
+test('hybrid/run-pipeline-hybrid-mode',
+    ( retractall(log_message(_)),
+      tmp_file('nsl_hyb97', Base),
+      atom_concat(Base, '_hyb97.pl', OutFile),
+      run_pipeline([
+          input='examples/input.pl',
+          input_type=hybrid,
+          aux_input='examples/np_prolog_input.pl',
+          out=prolog,
+          compress=false,
+          code_out=OutFile
+      ]),
+      exists_file(OutFile) )).
+
+% T98: run_pipeline/1 auto-detects hybrid mode when aux_input is set with
+%      an I/O examples primary input.
+test('hybrid/auto-detect-hybrid-with-aux',
+    ( retractall(log_message(_)),
+      tmp_file('nsl_hyb98', Base),
+      atom_concat(Base, '_hyb98.pl', OutFile),
+      run_pipeline([
+          input='examples/input.pl',
+          input_type=auto,
+          aux_input='examples/np_prolog_input.pl',
+          out=prolog,
+          compress=false,
+          code_out=OutFile
+      ]),
+      exists_file(OutFile) )).
+
+% T99: Hybrid Starlog output is produced when out=starlog.
+test('hybrid/starlog-output-produced',
+    ( retractall(log_message(_)),
+      tmp_file('nsl_hyb99', Base),
+      atom_concat(Base, '_hyb99.pl', OutFile),
+      run_hybrid_path('examples/input.pl', 'examples/np_prolog_input.pl',
+                      starlog, true, '', OutFile),
+      file_name_extension(Base2, _, OutFile),
+      atom_concat(Base2, '.starlog', StarlogFile),
+      exists_file(StarlogFile) )).
+
+% T100: Hybrid output file loads in SWI-Prolog without error.
+test('hybrid/output-loadable',
+    ( retractall(log_message(_)),
+      tmp_file('nsl_hyb100', Base),
+      atom_concat(Base, '_hyb100.pl', OutFile),
+      run_hybrid_path('examples/input.pl', 'examples/np_prolog_input.pl',
+                      prolog, true, '', OutFile),
+      exists_file(OutFile),
+      catch(consult(OutFile), _, true) )).
