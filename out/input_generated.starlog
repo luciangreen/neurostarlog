@@ -3,7 +3,7 @@
 % Conversion: append→&, atom_concat→•, string_concat→:
 % compress(true), method_chaining enabled.
 
-input([],_15338).
+input([],_20032).
 
 input([_X|T_], Out_) :-
     % UNRESOLVED: element combination not determined.
