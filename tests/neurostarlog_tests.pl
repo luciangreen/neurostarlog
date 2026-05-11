@@ -597,6 +597,26 @@ test('np/partial-status-on-missing-file',
                        true, '', Status),
       Status = partial(_) )).
 
+% T70b: Opaque clauses (with irreducible goals) are preserved unchanged.
+test('np/opaque-clause-preserved-unchanged',
+    ( Clause = (emit(X) :- true, writeln(X)),
+      np_preserve_opaque_sections([Clause], [Clause2], 100, _Log),
+      np_clause_canonical(Clause, C1),
+      np_clause_canonical(Clause2, C2),
+      C1 = C2 )).
+
+% T70c: Mixed optimisation keeps opaque clause unchanged and optimises others.
+test('np/mixed-optimisation-preserves-opaque',
+    ( Clauses = [
+          (helper(X) :- true, X > 0),
+          (emit(X) :- true, writeln(X)),
+          (main(X) :- helper(X))
+      ],
+      np_preserve_opaque_sections(Clauses, Optimised, 100, _Log),
+      member((helper(H) :- H > 0), Optimised),
+      member((emit(E) :- true, writeln(E)), Optimised),
+      member((main(M) :- helper(M)), Optimised) )).
+
 % ---------------------------------------------------------------------------
 % PR 6 tests: Gaussian/index optimisation
 % ---------------------------------------------------------------------------

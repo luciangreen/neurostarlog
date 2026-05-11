@@ -122,7 +122,7 @@ np_optimise_file(InputFile, InputType, OutMode, _Compress, CodeOut, Status) :-
     ;
         pipeline_log(info,
             ['NP: loaded ', InputFile, ' — applying optimisation pipeline.']),
-        np_plateau_optimise(Clauses, Optimised, 100, OptLog),
+        np_preserve_opaque_sections(Clauses, Optimised, 100, OptLog),
         forall(member(LogMsg, OptLog), pipeline_log(info, [LogMsg])),
         np_write_output(OutMode, Optimised, CodeOut, WriteErrors),
         ( WriteErrors = [] ->
@@ -131,6 +131,61 @@ np_optimise_file(InputFile, InputType, OutMode, _Compress, CodeOut, Status) :-
             Status = partial(WriteErrors)
         )
     ).
+
+%% np_preserve_opaque_sections(+Clauses, -Optimised, +MaxIter, -Log)
+%
+% Stage 5 boundary: preserve opaque/irreducible sections unchanged while
+% optimising only the remaining clauses with plateau stopping.
+
+np_preserve_opaque_sections(Clauses, Optimised, MaxIter, Log) :-
+    np_tag_clauses_by_opacity(Clauses, Tagged),
+    np_collect_optimisable(Tagged, OptimisableClauses),
+    np_collect_opaque_count(Tagged, OpaqueCount),
+    np_plateau_optimise(OptimisableClauses, OptimisableOptimised, MaxIter, OptLog),
+    np_rebuild_from_tagged(Tagged, OptimisableOptimised, Optimised),
+    ( OpaqueCount > 0 ->
+        format(atom(OpaqueMsg),
+            'NP: preserved ~w opaque section clause(s) unchanged.', [OpaqueCount]),
+        Log = [OpaqueMsg | OptLog]
+    ;
+        Log = OptLog
+    ).
+
+np_tag_clauses_by_opacity([], []).
+np_tag_clauses_by_opacity([Clause | Rest], [Tag | TaggedRest]) :-
+    ( np_clause_is_opaque(Clause) ->
+        Tag = opaque(Clause)
+    ;
+        Tag = optimisable(Clause)
+    ),
+    np_tag_clauses_by_opacity(Rest, TaggedRest).
+
+np_clause_is_opaque((_ :- Body)) :-
+    !,
+    np_goals_to_list(Body, Goals),
+    member(G, Goals),
+    np_is_irreducible_goal(G),
+    !.
+np_clause_is_opaque(_) :- fail.
+
+np_collect_optimisable([], []).
+np_collect_optimisable([opaque(_) | Rest], Clauses) :-
+    np_collect_optimisable(Rest, Clauses).
+np_collect_optimisable([optimisable(Clause) | Rest], [Clause | Clauses]) :-
+    np_collect_optimisable(Rest, Clauses).
+
+np_collect_opaque_count([], 0).
+np_collect_opaque_count([opaque(_) | Rest], Count) :-
+    np_collect_opaque_count(Rest, Count0),
+    Count is Count0 + 1.
+np_collect_opaque_count([optimisable(_) | Rest], Count) :-
+    np_collect_opaque_count(Rest, Count).
+
+np_rebuild_from_tagged([], _OptimisedPool, []).
+np_rebuild_from_tagged([opaque(Clause) | Rest], OptimisedPool, [Clause | OutRest]) :-
+    np_rebuild_from_tagged(Rest, OptimisedPool, OutRest).
+np_rebuild_from_tagged([optimisable(_Original) | Rest], [Next | OptRest], [Next | OutRest]) :-
+    np_rebuild_from_tagged(Rest, OptRest, OutRest).
 
 % ---------------------------------------------------------------------------
 % Clause loader
