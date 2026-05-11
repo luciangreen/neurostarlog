@@ -209,6 +209,8 @@ Partial files were written to out/.
 
 ## Feature completion
 
+Starlog input detection and routing is 90% complete. Full native Starlog optimisation (Starlog-specific operator rewriting) is partial; the NP path treats Starlog source as Prolog for most optimisations.
+
 | Feature | Target completion |
 |---------|-------------------|
 | NeuroStarlog CLI wrapper | 100% |

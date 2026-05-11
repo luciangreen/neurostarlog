@@ -56,7 +56,7 @@ input([_X|T_], Out_) :-
     input(T_, Out_).
 ```
 
-The `% UNRESOLVED` comment indicates a section where the output combination rule (sum, product, concatenation, etc.) could not be determined from the grammar structure alone.  The partial code is still written so you can inspect what was generated.
+The `% UNRESOLVED` comment indicates a section where the output combination rule (sum, product, concatenation, etc.) could not be determined from the grammar structure alone. The partial code is still written so you can inspect what was generated.
 
 ### Sample pipeline log (`out/input_log.txt`)
 
