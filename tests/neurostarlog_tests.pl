@@ -258,7 +258,30 @@ test('s2a_prolog/nd-rule-generates-two-clauses',
     ( rhs_to_clause_texts(ndconv, [[nd, [['_X'], ['_Y']]]], Clauses, _Errors),
       length(Clauses, 2) )).
 
-% T33: write_s2a_prolog/4 writes nothing and succeeds when OutFile is ''.
+% T33: Placeholder a/b/c with a mapped command is replaced in recursive Prolog.
+test('s2a_prolog/placeholder-command-replaced',
+    ( rhs_to_clause_texts(phconv, [[a, write(x)], [n, a1]], Clauses, Errors),
+      Errors = [],
+      Clauses = [Text],
+      sub_atom(Text, _, _, _, 'write(x)'),
+      sub_atom(Text, _, _, _, 'phconv(T_, Out_)') )).
+
+% T34: Unmapped placeholder returns partial error and unresolved marker text.
+test('s2a_prolog/unresolved-placeholder-error',
+    ( rhs_to_clause_texts(phmiss, [[b], [n, a1]], Clauses, Errors),
+      member(error(unresolved_placeholder, phmiss-b), Errors),
+      Clauses = [Text],
+      sub_atom(Text, _, _, _, 'UNRESOLVED') )).
+
+% T35: Irreducible command grammar items are preserved unchanged.
+test('s2a_prolog/irreducible-command-preserved',
+    ( rhs_to_clause_texts(irconv, [[writeln(x)], [n, a1]], Clauses, Errors),
+      Errors = [],
+      Clauses = [Text],
+      sub_atom(Text, _, _, _, 'writeln(x)'),
+      sub_atom(Text, _, _, _, 'irconv(T_, Out_)') )).
+
+% T36: write_s2a_prolog/4 writes nothing and succeeds when OutFile is ''.
 test('s2a_prolog/no-file-written-when-outfile-empty',
     ( write_s2a_grammar(nftest, 'examples/input.pl', '', Grammar, _),
       write_s2a_prolog(nftest, Grammar, '', Status),

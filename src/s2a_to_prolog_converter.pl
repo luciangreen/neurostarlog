@@ -22,6 +22,14 @@
 %   grammar_rule(P, [n,a1], '->', [[nd, Alts], [n,a1]])
 %       → one clause per alternative, each including a recursive call.
 %
+%   grammar_rule(P, [n,a1], '->', [[a, Cmd], [n,a1]])
+%       → placeholder replacement:
+%         P([_X|T_], Out_) :- Cmd, P(T_, Out_).
+%
+%   grammar_rule(P, [n,a1], '->', [[Cmd], [n,a1]])
+%       → irreducible command preserved:
+%         P([_X|T_], Out_) :- Cmd, P(T_, Out_).
+%
 % Irreducible grammar items (unrecognised patterns) are preserved with
 % an UNRESOLVED comment; partial code is still written to the output file.
 %
@@ -117,6 +125,60 @@ rhs_to_clause_texts(Pred, [[nd, Alts], [n, a1]], Clauses, Errors) :-
 rhs_to_clause_texts(Pred, [[nd, Alts]], Clauses, Errors) :-
     convert_nd_alts(Pred, [], Alts, Clauses, Errors).
 
+% Placeholder replacement with command and recursion:
+% [[a|b|c, Cmd], [n,a1]]
+rhs_to_clause_texts(Pred, [[Placeholder, Cmd], [n, a1]], [Text], []) :-
+    placeholder_symbol(Placeholder),
+    s2a_command_term(Cmd),
+    !,
+    cmd_to_atom(Cmd, CmdAtom),
+    make_recursive_cmd_clause(Pred, CmdAtom, Text).
+
+% Placeholder replacement with command only:
+% [[a|b|c, Cmd]]
+rhs_to_clause_texts(Pred, [[Placeholder, Cmd]], [Text], []) :-
+    placeholder_symbol(Placeholder),
+    s2a_command_term(Cmd),
+    !,
+    cmd_to_atom(Cmd, CmdAtom),
+    make_command_clause(Pred, CmdAtom, Text).
+
+% Placeholder without a command mapping (recursive form) -> partial failure.
+rhs_to_clause_texts(Pred, [[Placeholder], [n, a1]], [Text],
+                    [error(unresolved_placeholder, Pred-Placeholder)]) :-
+    placeholder_symbol(Placeholder),
+    !,
+    format(atom(Text),
+        '~w([_X|T_], Out_) :-\n    % UNRESOLVED: placeholder ~w had no command mapping.\n    ~w(T_, Out_).',
+        [Pred, Placeholder, Pred]).
+
+% Placeholder without a command mapping (non-recursive form) -> partial failure.
+rhs_to_clause_texts(Pred, [[Placeholder]], [Text],
+                    [error(unresolved_placeholder, Pred-Placeholder)]) :-
+    placeholder_symbol(Placeholder),
+    !,
+    format(atom(Text),
+        '% UNRESOLVED: ~w placeholder ~w had no command mapping.',
+        [Pred, Placeholder]).
+
+% Preserve an irreducible command with recursion:
+% [[Cmd], [n,a1]]
+rhs_to_clause_texts(Pred, [[Cmd], [n, a1]], [Text], []) :-
+    s2a_command_term(Cmd),
+    \+ grammar_reserved_item(Cmd),
+    !,
+    cmd_to_atom(Cmd, CmdAtom),
+    make_recursive_cmd_clause(Pred, CmdAtom, Text).
+
+% Preserve an irreducible command without recursion:
+% [[Cmd]]
+rhs_to_clause_texts(Pred, [[Cmd]], [Text], []) :-
+    s2a_command_term(Cmd),
+    \+ grammar_reserved_item(Cmd),
+    !,
+    cmd_to_atom(Cmd, CmdAtom),
+    make_command_clause(Pred, CmdAtom, Text).
+
 % Single variable element (irreducible, no recursion): [['_X']]
 rhs_to_clause_texts(Pred, [['_X']], [Text],
                     [error(unresolved_element, Pred)]) :-
@@ -153,6 +215,53 @@ convert_nd_alts(Pred, Suffix, [Alt|Alts], Clauses, Errors) :-
     convert_nd_alts(Pred, Suffix, Alts, RestClauses, RestErrors),
     append(AltClauses, RestClauses, Clauses),
     append(AltErrors, RestErrors, Errors).
+
+% ---------------------------------------------------------------------------
+% Placeholder/command helpers
+% ---------------------------------------------------------------------------
+
+placeholder_symbol(a).
+placeholder_symbol(b).
+placeholder_symbol(c).
+
+grammar_reserved_item('_X').
+grammar_reserved_item('_Y').
+grammar_reserved_item([n, _]).
+grammar_reserved_item([r, _]).
+grammar_reserved_item([nd, _]).
+% Placeholder symbols are also reserved so they are not treated as direct
+% callable commands in the generic irreducible-command conversion rules.
+grammar_reserved_item(Item) :-
+    placeholder_symbol(Item).
+
+% s2a_command_term(+Cmd)
+%
+% True when Cmd is a callable command term that can be emitted directly as a
+% Prolog goal. Lists are excluded because grammar items are represented as lists
+% (for example [[Cmd], [n,a1]] and [[nd, Alts]]); allowing Cmd itself to be a
+% list could cause structural grammar nodes to be misclassified as commands.
+% Placeholder symbols (a/b/c) are filtered separately by grammar_reserved_item/1.
+s2a_command_term(Cmd) :-
+    callable(Cmd),
+    \+ is_list(Cmd).
+
+make_recursive_cmd_clause(Pred, CmdAtom, Text) :-
+    format(atom(Text),
+        '~w([_X|T_], Out_) :-\n    ~w,\n    ~w(T_, Out_).',
+        [Pred, CmdAtom, Pred]).
+
+make_command_clause(Pred, CmdAtom, Text) :-
+    format(atom(Text),
+        '~w(_In, _Out) :-\n    ~w.',
+        [Pred, CmdAtom]).
+
+% cmd_to_atom(+Cmd, -Atom)
+%
+% Convert a command term to textual Prolog preserving operator notation and
+% quoting atoms where required so generated clauses remain syntactically valid.
+cmd_to_atom(Cmd, Atom) :-
+    with_output_to(atom(Atom),
+        write_term(Cmd, [quoted(true), ignore_ops(false)])).
 
 % ---------------------------------------------------------------------------
 % File writer
