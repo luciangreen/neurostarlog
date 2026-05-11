@@ -262,6 +262,7 @@ starlog_expr_to_prolog_goals(Expr, OutVar, Goals) :-
 
 expr_operands(Op, Expr, Ops) :-
     compound(Expr),
+    functor(Expr, Op, 2),
     Expr =.. [Op, L, R],
     !,
     expr_operands(Op, L, LeftOps),

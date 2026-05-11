@@ -360,7 +360,7 @@ test('s2a_starlog/roundtrip-atom-concat',
       sub_atom(PrologText, _, _, _, 'atom_concat') )).
 
 % T42b: Direct Starlog two-operand expression roundtrips to one Prolog call.
-test('s2a_starlog/roundtrip-two-operand-base-case',
+test('s2a_starlog/roundtrip-two-operand-atom-concat-base-case',
     ( starlog_to_prolog('bar(A,B,C) :- C is A•B.', PrologText),
       findall(Pos, sub_atom(PrologText, Pos, _, _, 'atom_concat'), Ps),
       length(Ps, 1) )).
