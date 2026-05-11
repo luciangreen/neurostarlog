@@ -240,6 +240,7 @@ grammar_reserved_item(Item) :-
 % Prolog goal. Lists are excluded because grammar items are represented as lists
 % (for example [[Cmd], [n,a1]] and [[nd, Alts]]); allowing Cmd itself to be a
 % list could cause structural grammar nodes to be misclassified as commands.
+% Placeholder symbols (a/b/c) are filtered separately by grammar_reserved_item/1.
 s2a_command_term(Cmd) :-
     callable(Cmd),
     \+ is_list(Cmd).

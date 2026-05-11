@@ -278,7 +278,8 @@ test('s2a_prolog/irreducible-command-preserved',
     ( rhs_to_clause_texts(irconv, [[writeln(x)], [n, a1]], Clauses, Errors),
       Errors = [],
       Clauses = [Text],
-      sub_atom(Text, _, _, _, 'writeln(x)') )).
+      sub_atom(Text, _, _, _, 'writeln(x)'),
+      sub_atom(Text, _, _, _, 'irconv(T_, Out_)') )).
 
 % T36: write_s2a_prolog/4 writes nothing and succeeds when OutFile is ''.
 test('s2a_prolog/no-file-written-when-outfile-empty',
