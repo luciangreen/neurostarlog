@@ -537,3 +537,163 @@ test('np/partial-status-on-missing-file',
     ( np_optimise_file('/nonexistent/np_missing.pl', prolog, prolog,
                        true, '', Status),
       Status = partial(_) )).
+
+% ---------------------------------------------------------------------------
+% PR 6 tests: Gaussian/index optimisation
+% ---------------------------------------------------------------------------
+
+% T71: np_is_gaussian_candidate/3 recognises a linear recurrence predicate.
+test('gaussian/candidate-detected-linear',
+    ( np_load_clauses('examples/gaussian_input.pl', Clauses, []),
+      np_is_gaussian_candidate(Clauses, linear, 2) )).
+
+% T72: np_is_gaussian_candidate/3 recognises a quadratic (triangular) recurrence.
+test('gaussian/candidate-detected-quadratic',
+    ( np_load_clauses('examples/gaussian_input.pl', Clauses, []),
+      np_is_gaussian_candidate(Clauses, tri, 2) )).
+
+% T73: np_is_gaussian_candidate/3 does NOT flag a non-recurrence predicate.
+test('gaussian/non-candidate-not-detected',
+    ( np_load_clauses('examples/gaussian_input.pl', Clauses, []),
+      \+ np_is_gaussian_candidate(Clauses, cube, 2) )).
+
+% T74: np_find_gaussian_candidates/2 finds linear and tri but not cube.
+test('gaussian/find-candidates',
+    ( np_load_clauses('examples/gaussian_input.pl', Clauses, []),
+      np_find_gaussian_candidates(Clauses, Candidates),
+      member(linear/2, Candidates),
+      member(tri/2, Candidates),
+      \+ member(cube/2, Candidates) )).
+
+% T75: gauss_solve/3 correctly solves a 2x2 linear system.
+%      System: a0=2, a1=3 (from Vandermonde for degree 1, points 0→2, 1→5).
+test('gaussian/gauss-solve-2x2',
+    ( gauss_solve([[1,0],[1,1]], [2,5], [A0, A1]),
+      A0 =:= 2,
+      A1 =:= 3 )).
+
+% T76: gauss_solve/3 correctly solves a 3x3 system (triangular numbers).
+%      Points: (0,0), (1,1), (2,3) → coefficients [0, 1/2, 1/2].
+%      Both A1 and A2 are 1/2 because the triangular-numbers polynomial is
+%      0 + (1/2)*N + (1/2)*N^2  =  N*(N+1)/2.
+test('gaussian/gauss-solve-3x3-tri',
+    ( gauss_solve([[1,0,0],[1,1,1],[1,2,4]], [0,1,3], [A0, A1, A2]),
+      A0 =:= 0,
+      A1 =:= 1 rdiv 2,
+      A2 =:= 1 rdiv 2 )).
+
+% T77: gauss_fit_polynomial/3 fits degree-1 polynomial to linear sample points.
+test('gaussian/fit-polynomial-linear',
+    ( gauss_fit_polynomial([0-2, 1-5, 2-8, 3-11], 4, Coeffs),
+      Coeffs = [A0, A1],
+      A0 =:= 2,
+      A1 =:= 3 )).
+
+% T78: gauss_fit_polynomial/3 fits degree-2 polynomial to triangular sample points.
+test('gaussian/fit-polynomial-quadratic',
+    ( gauss_fit_polynomial([0-0, 1-1, 2-3, 3-6], 4, Coeffs),
+      length(Coeffs, 3),
+      Coeffs = [A0, A1, A2],
+      A0 =:= 0,
+      A1 =:= 1 rdiv 2,
+      A2 =:= 1 rdiv 2 )).
+
+% T79: np_trace_and_fit/5 traces linear recurrence and fits polynomial.
+test('gaussian/trace-and-fit-linear',
+    ( np_load_clauses('examples/gaussian_input.pl', Clauses, []),
+      np_trace_and_fit(Clauses, linear, 2, 4, Coeffs),
+      Coeffs = [A0, A1],
+      A0 =:= 2,
+      A1 =:= 3 )).
+
+% T80: np_trace_and_fit/5 traces triangular recurrence and fits polynomial.
+test('gaussian/trace-and-fit-quadratic',
+    ( np_load_clauses('examples/gaussian_input.pl', Clauses, []),
+      np_trace_and_fit(Clauses, tri, 2, 4, Coeffs),
+      length(Coeffs, 3) )).
+
+% T81: np_gaussian_optimise_pass/3 produces Gaussian log for gaussian_input.pl.
+test('gaussian/pass-produces-log',
+    ( np_load_clauses('examples/gaussian_input.pl', Clauses, []),
+      np_gaussian_optimise_pass(Clauses, _, Log),
+      member('NP: applied Gaussian elimination.', Log) )).
+
+% T82: np_gaussian_optimise_pass/3 produces empty log for np_prolog_input.pl.
+%      (No index recurrences in that file → Gaussian elimination not triggered.)
+test('gaussian/pass-no-log-without-pattern',
+    ( np_load_clauses('examples/np_prolog_input.pl', Clauses, []),
+      np_gaussian_optimise_pass(Clauses, _, Log),
+      \+ member('NP: applied Gaussian elimination.', Log) )).
+
+% T83: Gaussian pass replaces linear/2 with a single closed-form clause.
+test('gaussian/linear-replaced-with-one-clause',
+    ( np_load_clauses('examples/gaussian_input.pl', Clauses, []),
+      np_gaussian_optimise_pass(Clauses, Optimised, _Log),
+      findall(C,
+          ( member(C, Optimised),
+            np_clause_head(C, H),
+            functor(H, linear, 2) ),
+          LinearClauses),
+      length(LinearClauses, 1) )).
+
+% T84: Generated closed-form clause for linear/2 gives correct values.
+%      linear(0,Out) should give Out=2; linear(4,Out) should give Out=14.
+test('gaussian/linear-closed-form-correct',
+    ( np_load_clauses('examples/gaussian_input.pl', Clauses, []),
+      np_trace_and_fit(Clauses, linear, 2, 4, Coeffs),
+      np_make_closed_form_clause(linear, 2, Coeffs, Clause),
+      Clause = (Head :- (OutVar is PolyExpr)),
+      % Verify at N=0: Out=2
+      copy_term(t(Head, PolyExpr, OutVar), t(H0, E0, _)),
+      arg(1, H0, 0),
+      catch(Val0 is E0, _, fail),
+      Val0 =:= 2,
+      % Verify at N=4: Out = 2+3*4 = 14
+      copy_term(t(Head, PolyExpr, OutVar), t(H4, E4, _)),
+      arg(1, H4, 4),
+      catch(Val4 is E4, _, fail),
+      Val4 =:= 14 )).
+
+% T85: Gaussian-optimised file loads in SWI-Prolog without error.
+test('gaussian/optimised-file-loadable',
+    ( tmp_file('nsl_gauss_load', Base),
+      atom_concat(Base, '_gauss.pl', OutFile),
+      np_optimise_file('examples/gaussian_input.pl', prolog, prolog,
+                       true, OutFile, _Status),
+      exists_file(OutFile),
+      catch(consult(OutFile), _, true) )).
+
+% T86: cube/2 is preserved unchanged by the Gaussian pass.
+test('gaussian/cube-preserved-unchanged',
+    ( np_load_clauses('examples/gaussian_input.pl', Clauses, []),
+      np_gaussian_optimise_pass(Clauses, Optimised, _Log),
+      member(CubeClause, Optimised),
+      np_clause_head(CubeClause, H),
+      functor(H, cube, 2) )).
+
+% T87: gauss_polynomial_value/3 evaluates a polynomial correctly.
+%      Polynomial [2, 3] at N=4 → 2 + 3*4 = 14.
+test('gaussian/polynomial-value',
+    ( gauss_polynomial_value([2, 3], 4, Val),
+      Val =:= 14 )).
+
+% T88: gauss_polynomial_value/3 evaluates triangular polynomial at N=5.
+%      Triangular(5) = 5*(5+1)/2 = 15.
+test('gaussian/polynomial-value-quadratic',
+    ( gauss_polynomial_value([0, 1 rdiv 2, 1 rdiv 2], 5, Val),
+      Val =:= 15 )).
+
+% T89: Full plateau optimisation runs Gaussian on gaussian_input.pl.
+test('gaussian/plateau-runs-gaussian',
+    ( np_load_clauses('examples/gaussian_input.pl', Clauses, []),
+      np_plateau_optimise(Clauses, _Optimised, 100, Log),
+      member(Msg, Log),
+      sub_atom(Msg, _, _, _, 'Gaussian') )).
+
+% T90: np_prolog_input.pl plateau optimisation does not trigger Gaussian.
+%      (Re-confirms T68 under PR 6 with the Gaussian pass now active.)
+test('gaussian/no-gaussian-on-np-prolog-input',
+    ( retractall(log_message(_)),
+      np_load_clauses('examples/np_prolog_input.pl', Clauses, []),
+      np_plateau_optimise(Clauses, _, 100, Log),
+      \+ member('NP: applied Gaussian elimination.', Log) )).

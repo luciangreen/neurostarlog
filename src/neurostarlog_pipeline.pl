@@ -9,6 +9,7 @@
 :- include('s2a_grammar_writer.pl').
 :- include('s2a_to_prolog_converter.pl').
 :- include('s2a_to_starlog_converter.pl').
+:- include('gaussian_optimiser.pl').
 :- include('np_optimiser.pl').
 
 %% detect_input_type(+File, -Type)
