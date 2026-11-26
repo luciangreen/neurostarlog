@@ -248,3 +248,9 @@ Starlog input detection and routing is 90% complete. Full native Starlog optimis
 * Natural-language spec input is not supported in v1.
 * Approximate optimisation is intentionally excluded.
 
+
+## Vendored Spec to Algorithm and Spec to Grammar
+
+`s2a/` and `s2g/` are copies of the author's Spec to Algorithm and Spec to
+Grammar code. See `VENDORED.md` for how to check whether they have changed
+and how to record which version of the originals they came from.
